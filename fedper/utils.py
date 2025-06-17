@@ -11,10 +11,10 @@ from flwr_datasets import FederatedDataset
 from typing import Callable, Tuple
 from omegaconf import DictConfig
 
-from FedPer.model import PersonalizedNet
-from FedPer.client import FlowerNumPyClient
+from fedper.model import PersonalizedNet
+from fedper.client import FlowerNumPyClient
 from flwr.server import ServerConfig, ServerAppComponents
-from FedPer.server import FedAvgWithModelSaving, weighted_average
+from server import FedAvgWithModelSaving, weighted_average
 
 
 def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], ServerAppComponents]:

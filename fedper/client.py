@@ -3,7 +3,7 @@ from typing import List
 import torch
 from collections import OrderedDict
 import numpy as np
-from FedPer.model import train, test
+from fedper.model import train, test
 from typing import Tuple, List
 from flwr.common import Context
 import os
