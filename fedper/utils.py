@@ -3,7 +3,7 @@ from flwr.common import Context
 
 from flwr.simulation import run_simulation
 from flwr.server import ServerAppComponents
-
+from logging import Logger
 import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import transforms 
@@ -12,7 +12,7 @@ from typing import Callable, Tuple
 from omegaconf import DictConfig
 
 from fedper.model import PersonalizedNet
-from fedper.client import PersonalizedClient, RegularClient
+from fedper.client import PersonalizedClient, BaseClient
 from flwr.server import ServerConfig, ServerAppComponents
 from fedper.server import FedAvgWithModelSaving, weighted_average
 
@@ -49,7 +49,7 @@ def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], Serv
         )
 
         # Configure the server for 5 rounds of training
-        config = ServerConfig(num_rounds=10)
+        config = ServerConfig(num_rounds=cfg.num_rounds)
 
         return ServerAppComponents(strategy=strategy, config=config)
     
@@ -58,7 +58,7 @@ def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], Serv
 def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> Tuple[DataLoader, DataLoader, DataLoader]:
     partition = fds.load_partition(partition_id)
     # Divide data on each node: 80% train, 20% test
-    partition_train_test = partition.train_test_split(test_size=0.2, seed=42)   
+    partition_train_test = partition.train_test_split(test_size=0.2, seed=cfg.seed)   
     pytorch_transforms = transforms.Compose(
         [transforms.ToTensor(), transforms.Normalize(0.5, 0.5)]
     )
@@ -82,16 +82,20 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
     
 
 
-def get_client_fn(cfg: DictConfig, client_state_path: str, fds: FederatedDataset) -> Callable[[Context], FlowerNumPyClient]:
-    
-    def client_fn(context: Context) -> FlowerNumPyClient:
+def get_client_fn(cfg: DictConfig, client_state_path: str, fds: FederatedDataset, log: Logger) -> Callable[[Context], BaseClient]:
+    print("Load client_fn")
+    def client_fn(context: Context) -> BaseClient:
         partition_id = context.node_config['partition-id']
 
         trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
         net = PersonalizedNet(cfg.model.num_classes).to(cfg.device)
-        return FlowerNumPyClient(partition_id, net, trainloader, valloader, client_state_path).to_client()
+        print("Training type:", cfg.training_type)
+        if cfg.training_type == "base":
+            return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log).to_client()
+        elif cfg.training_type == "personalized":
+            print('[Client] Personalized Client created')
+            return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path).to_client()
 
-    return client_fn
-    
+    return client_fn    
     
 

@@ -2,6 +2,7 @@ num_clients: 2
 num_rounds: 10
 seed: 42
 session_name: test_tanguy
+training_type: "base"
 
 client_config:
   num_epochs: 4 
@@ -34,5 +35,5 @@ server_config:
 
 hydra:
   run:
-    dir: ../${session_name}/${now:%H-%M-%S}
+    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 

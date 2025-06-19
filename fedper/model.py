@@ -52,7 +52,7 @@ def test(net, testloader) -> Tuple[float, float]:
 
 # We use the architecture of the McMahan paper for the global network
 class PersonalizedNet(nn.Module):
-    """Global network for personalized federated learning."""
+    """Entire network for personalized federated learning."""
     
     def __init__(self, num_classes):
         super().__init__()

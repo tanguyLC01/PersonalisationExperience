@@ -32,9 +32,8 @@ class FedAvgWithModelSaving(FedAvg):
             pickle.dump(data, h, protocol=pickle.HIGHEST_PROTOCOL)
 
     def evaluate(self, server_round: int, parameters: List[np.ndarray]) -> Tuple[float, int, Dict[str, float]]:
-        """Evaluate the global model and save it."""
-        # Call the original evaluate method        
-        # Save the global model after evaluation
+        """Evaluate the global model and save it."""    
+        # Save the global model before evaluation
         self._save_global_model(server_round, parameters)
         
         # Call the original evaluate method        
