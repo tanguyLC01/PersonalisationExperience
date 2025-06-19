@@ -1,20 +1,18 @@
 num_clients: 2
 num_rounds: 10
-clients_per_round: 10
-algorithm: fedper
+seed: 42
 session_name: test_tanguy
 
 client_config:
   num_epochs: 4 
-  batch_size: 128
+  batch_size: 32
   learning_rate: 0.01
   optimiser: "sgd"
+  num_cpus: 10
+  num_gpus: 0
 
 device: 'cpu'
-
-client_resources:
-  num_cpus: 4
-  num_gpus: 0
+  
 
 dataset:
   name : "fashion_mnist"
@@ -30,11 +28,11 @@ model:
 server_config:
   fraction_fit: 1.0
   fraction_evaluate: 0.5
-  min_fit_clients: 10
-  min_evaluate_clients: 5
-  min_available_clients: 10
+  min_fit_clients: 2
+  min_evaluate_clients: 2
+  min_available_clients: 2
 
 hydra:
   run:
-    dir: ./${session_name}/${now:%H-%M-%S}
+    dir: ../${session_name}/${now:%H-%M-%S}
 

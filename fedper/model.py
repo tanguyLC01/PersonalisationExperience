@@ -36,8 +36,8 @@ def test(net, testloader) -> Tuple[float, float]:
     correct, total, loss = 0, 0, 0.0
     net.eval()
     with torch.no_grad():
-        for images, labels in testloader:
-            images, labels = images.to(DEVICE), labels.to(DEVICE)
+        for batch in testloader:
+            images, labels = batch["image"].to(DEVICE), batch['label'].to(DEVICE)
             outputs = net(images)
             
             # Metrics
