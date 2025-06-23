@@ -49,9 +49,9 @@ class BaseClient(NumPyClient):
         return float(loss), len(self.valloader), {"accuracy": float(accuracy)}
 
 class PersonalizedClient(BaseClient):
-    def __init__(self, partition_id, net, trainloader, valloader, epochs, client_save_path) -> None:
+    def __init__(self, partition_id, net, trainloader, valloader, epochs, client_save_path, log) -> None:
         self.client_local_model_path = f"{client_save_path}/local_net_{partition_id}.pth"
-        super().__init__(partition_id, net, trainloader, valloader, epochs)  
+        super().__init__(partition_id, net, trainloader, valloader, epochs, log)  
 
     def get_parameters(self, config) -> List[np.ndarray]:
         """Return the current parameters of the global network."""

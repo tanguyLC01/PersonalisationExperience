@@ -2,7 +2,7 @@ num_clients: 2
 num_rounds: 10
 seed: 42
 session_name: test_tanguy
-training_type: "base"
+training_type: base
 
 client_config:
   num_epochs: 4 
@@ -17,14 +17,15 @@ device: 'cpu'
 
 dataset:
   name : "fashion_mnist"
-  # split: sample
   num_classes: 10
   seed: 42
   num_clients: ${num_clients}
- # fraction: 0.83
-
+  partitioner:
+    name: "dirichlet"
+    alpha:  0.6
 model:
   num_classes: 10
+  model_type: 'globalier'
 
 server_config:
   fraction_fit: 1.0

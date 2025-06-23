@@ -30,7 +30,8 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(client_save_path)
     os.makedirs(server_save_path)
     
-    partitioner = DirichletPartitioner(alpha=0.1, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
+    if cfg.dataset.partitioner.name == "dirichlet":
+        partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
     fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": partitioner})
 
     fig, _, _ = plot_label_distributions(partitioner=fds.partitioners["train"],

@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 from fedper.utils import load_datasets
 from flwr_datasets.partitioner import DirichletPartitioner
 from flwr_datasets import FederatedDataset
+import json
 
 def load_global_model(net, log_directory, num_rounds):
     with open(f"{log_directory}/server_state/parameters_round_{num_rounds}.pkl", "rb") as f:
@@ -34,18 +35,18 @@ def main():
     parser.add_argument('-n', '--num_client', type=int, default=0, help='Client Id to evalute')
     parser.parse_args()
     log_directory  = parser.parse_args().log_directory
-    
+    client_id = parser.parse_args().num_client
     config_file = f"{log_directory}/.hydra/config.yaml"
     cfg = OmegaConf.load(config_file)
     
-    net = PersonalizedNet(cfg.model.num_classes)
+    net = PersonalizedNet(cfg.model.num_classes, cfg.model.model_type)
     net.eval()
  
     if cfg.training_type == 'base':
         load_global_model(net, log_directory, cfg.num_rounds)
         
     elif cfg.training_type == 'personalized':
-        net.local_net.load_state_dict(torch.load(f"{log_directory}/client_states/local_net_{parser.parse_args().num_client}.pth"))
+        net.local_net.load_state_dict(torch.load(f"{log_directory}/client_states/local_net_{client_id}.pth"))
         load_global_model(net, log_directory, cfg.num_rounds)  
 
     # regular_transform= transforms.Compose([
@@ -57,11 +58,28 @@ def main():
         #mnist_test = datasets.FashionMNIST(root='../data', train=False, download=True, transform=regular_transform)
         partitioner = DirichletPartitioner(alpha=0.1, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
         fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": partitioner})
-        # Everyone see the same test set / Loads_slipt in load_datasets enable to load the test set entirely
-        test_loader = load_datasets(parser.parse_args().num_client, fds, cfg)[2]
-        fashion_mnist = datasets.FashionMNIST(root='./data', train=False, download=True)
+        # Get the numerical repartition of each class for the selected client
+        full_dataset = fds.load_split("train")
+        fashion_mnist_test = datasets.FashionMNIST(root='./data', train=False, download=True)
         # Retrieve the class names
-        class_names = fashion_mnist.classes
+        class_names = fashion_mnist_test.classes
+        
+        labels_train = np.array(full_dataset["label"])
+        _, count_train = np.unique(labels_train, return_counts=True)
+        
+        train_dataset = fds.load_partition(client_id, "train")
+        labels = np.array(train_dataset["label"])
+        unique, counts = np.unique(labels, return_counts=True)
+        print("Class repartition for client", client_id)
+        for cls, count in zip(unique, counts):
+            print(f"Class {cls} ({class_names[int(cls)]}): {count/count_train[int(cls)]:.2f} samples")
+        # Everyone see the same test set / Loads_slipt in load_datasets enable to load the test set entirely
+        test_loader = load_datasets(client_id, fds, cfg)[2]
+        fashion_mnist_test = datasets.FashionMNIST(root='./data', train=False, download=True)
+
+        
+        # Retrieve the class names
+        class_names = fashion_mnist_test.classes
         
     #test_loader = torch.utils.data.DataLoader(mnist_test, batch_size=cfg.client_config.batch_size, shuffle=True)
 
@@ -77,12 +95,21 @@ def main():
             all_preds.extend(predicted.cpu().numpy())
             all_targets.extend(targets.cpu().numpy())
     report = classification_report(all_targets, all_preds, output_dict=True, zero_division=0)
-    accuracy = accuracy_score(all_targets, all_preds)
+
+    # Save metrics to log file
+    metrics = {
+        "classification_report": report,
+        "accuracy": report['accuracy']
+    }
+    metrics_path = f"{log_directory}/test_metrics_{client_id}.json"
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f, indent=4)
     print("Per-class metrics:")
     for cls, metrics in report.items():
         if cls.isdigit():
             print(f"Class {cls} ({class_names[int(cls)]}): Precision={metrics['precision']:.4f}, Recall={metrics['recall']:.4f}, F1={metrics['f1-score']:.4f}, Support={metrics['support']}")
-    print(f"Overall Accuracy: {accuracy:.4f}")
+    print(f"Overall Accuracy: {report['accuracy']:.4f}")
+    
 if __name__ == "__main__":
     main()
 

@@ -54,10 +54,10 @@ def test(net, testloader) -> Tuple[float, float]:
 class PersonalizedNet(nn.Module):
     """Entire network for personalized federated learning."""
     
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, model_type):
         super().__init__()
-        self.global_net = Global_Net()
-        self.local_net = Local_Net(num_classes)
+        self.global_net = Global_Net(model_type)
+        self.local_net = Local_Net(num_classes, model_type)
         
     def forward(self, x):
         x = self.global_net(x)
@@ -66,28 +66,32 @@ class PersonalizedNet(nn.Module):
     
 class Global_Net(nn.Module):
     
-    def __init__(self):
+    def __init__(self, model_type="globalier"):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 32, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        
+        self.model_type = model_type
+        self.model = nn.Sequential(nn.Conv2d(1, 32, 5), 
+                                   nn.ReLU(),
+                                   nn.MaxPool2d(2, 2))
+        if self.model_type == "globalier":
+            self.model.add_module("conv2", nn.Sequential(nn.Conv2d(32, 64, 5), 
+                                  nn.ReLU(), nn.MaxPool2d(2, 2), nn.Flatten()))
+            self.model.add_module("fc1", nn.Sequential(nn.Linear(64 * 16, 512),
+                                   nn.ReLU()))
         
     def forward(self, x):
-        x = self.pool(torch.relu(self.conv1(x)))
-        return x
+        return self.model(x)
         
 class Local_Net(nn.Module):
     
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, model_type='globalier'):
         super().__init__()
-        self.conv2 = nn.Conv2d(32, 64, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.fc1 = nn.Linear(64 * 16, 512)
-        self.fc2 = nn.Linear(512, num_classes)
+        self.model_type = model_type
+        self.model = nn.Sequential()
+        if self.model_type == 'localier':
+            self.model.add_module("conv2", nn.Sequential(nn.Conv2d(32, 64, 5), nn.ReLU(), nn.MaxPool2d(2, 2), nn.Flatten()))
+            self.model.add_module("fc1", nn.Sequential(nn.Linear(64 * 16, 512), nn.ReLU()))
+            
+        self.model.add_module('fc2', nn.Linear(512, num_classes))
         
     def forward(self, x):
-        x = self.pool(torch.relu(self.conv2(x)))
-        x = x.flatten(start_dim=1)
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x     
+        return self.model(x)    

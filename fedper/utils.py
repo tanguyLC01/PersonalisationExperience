@@ -83,18 +83,17 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
 
 
 def get_client_fn(cfg: DictConfig, client_state_path: str, fds: FederatedDataset, log: Logger) -> Callable[[Context], BaseClient]:
-    print("Load client_fn")
+
     def client_fn(context: Context) -> BaseClient:
         partition_id = context.node_config['partition-id']
 
         trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
-        net = PersonalizedNet(cfg.model.num_classes).to(cfg.device)
-        print("Training type:", cfg.training_type)
+        net = PersonalizedNet(cfg.model.num_classes, cfg.model.model_type).to(cfg.device)
         if cfg.training_type == "base":
             return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log).to_client()
         elif cfg.training_type == "personalized":
             print('[Client] Personalized Client created')
-            return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path).to_client()
+            return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path, log).to_client()
 
     return client_fn    
     
