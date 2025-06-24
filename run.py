@@ -1,6 +1,7 @@
 from flwr.client import ClientApp
 from flwr.simulation import run_simulation
 import numpy as np
+import random
 from flwr_datasets import FederatedDataset
 import os
 import hydra
@@ -16,9 +17,11 @@ from flwr_datasets.visualization import plot_label_distributions
 #partitioner = DirichletPartitioner(num_partitions=NUM_CLIENTS, partition_by="label",
 #                                   alpha=0.1, min_partition_size=10)
 log = logging.getLogger(__name__)
+
 @hydra.main(config_path='conf', config_name="base", version_base=None)
 def main(cfg: DictConfig) -> None:
-    
+    np.random.seed(cfg.seed) 
+    random.seed(cfg.seed)   
     log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
     log.info(f"Saving logs to {log_save_path}")
     client_save_path = (

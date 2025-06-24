@@ -15,16 +15,14 @@ rootdir = parser.parse_args().root_directory
 results = {}
 results['client0'] = {'localier': {'accuracy': [], 'f1-score': []}, 'globalier': {'accuracy': [], 'f1-score': []}, 'baseline': {'accuracy': [], 'f1-score': []}}
 results['client1'] = {'localier': {'accuracy': [], 'f1-score': []}, 'globalier': {'accuracy': [], 'f1-score': []}, 'baseline': {'accuracy': [], 'f1-score': []}}
-alphas = [0.1, 0.3, 0.6]
+alphas = [0.1, 0.3, 0.6, 0.9]
 
 for root, dirs, files in os.walk(rootdir):
   for file in files:
     if regex.match(file):
         cfg_dir = dirs[0]
         cfg = OmegaConf.load(f'{root}/{cfg_dir}/config.yaml')
-        alpha = cfg.dataset.partitioner.alpha if cfg.dataset.partitioner.name == 'dirichlet' else None
-        if alpha > 0.6:
-            continue
+        alpha = cfg.dataset.partitioner.alpha if cfg.dataset.partitioner.name == 'dirichlet' else None 
         model_type = cfg.model.model_type
         num_client = file.split('_')[2].split('.')[0] if 'test_metrics' in file else None
         with open(os.path.join(root, file), 'r') as f:
@@ -65,8 +63,8 @@ for client, metrics in results.items():
             linestyle=linestyle
         )
 plt.title('Model Accuracy Comparison')
-plt.ylabel('Accuracy')
-plt.xlabel('Experiment Index')
+plt.ylabel('Test Accuracy')
+plt.xlabel('Alpha Dirichlet')
 plt.legend()
 plt.grid()
 plt.tight_layout()
@@ -88,8 +86,8 @@ for client, metrics in results.items():
             linestyle=linestyle
         )
 plt.title('Model F1-Score Comparison')
-plt.ylabel('F1-Score')
-plt.xlabel('Experiment Index')
+plt.ylabel('Test F1-Score')
+plt.xlabel('Alpha Dirichlet')
 plt.legend()
 plt.grid()
 plt.tight_layout()
