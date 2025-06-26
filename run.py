@@ -25,7 +25,7 @@ def main(cfg: DictConfig) -> None:
     log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
     log.info(f"Saving logs to {log_save_path}")
     client_save_path = (
-            f"{log_save_path}/client_states/"
+            f"{log_save_path}/client_states"
         )
     server_save_path = (
             f"{log_save_path}/server_state"

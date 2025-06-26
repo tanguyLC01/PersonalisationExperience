@@ -2,7 +2,7 @@ num_clients: 2
 num_rounds: 10
 seed: 42
 session_name: test_tanguy
-training_type: base
+training_type: personalized
 
 client_config:
   num_epochs: 4 
@@ -21,10 +21,10 @@ dataset:
   num_clients: ${num_clients}
   partitioner:
     name: "dirichlet"
-    alpha:  0.9
+    alpha:  0.2
 model:
   num_classes: 10
-  model_type: globalier
+  model_type: localier
 
 server_config:
   fraction_fit: 1.0

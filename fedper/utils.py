@@ -90,10 +90,10 @@ def get_client_fn(cfg: DictConfig, client_state_path: str, fds: FederatedDataset
         trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
         net = PersonalizedNet(cfg.model.num_classes, cfg.model.model_type).to(cfg.device)
         if cfg.training_type == "base":
-            return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log).to_client()
+            return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log, cfg.device).to_client()
         elif cfg.training_type == "personalized":
             print('[Client] Personalized Client created')
-            return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path, log).to_client()
+            return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path, log, cfg.device).to_client()
 
     return client_fn    
     

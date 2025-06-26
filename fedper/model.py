@@ -3,18 +3,17 @@ import torch
 import torch.nn as nn
 from typing import Tuple, List
 
-BATCH_SIZE = 32
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-def train(net, trainloader, epochs: int, verbose=False) -> None:
+def train(net, trainloader, epochs: int, verbose=False, device='cpu') -> None:
     """Train the network on the training set."""
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=1e-2)
+    net.to(device)
     net.train()
     for epoch in range(epochs):
         correct, total, epoch_loss = 0, 0, 0.0
         for batch in trainloader:
-            images, labels = batch["image"].to(DEVICE), batch["label"].to(DEVICE)
+            images, labels = batch["image"].to(device), batch["label"].to(device)
             optimizer.zero_grad()
             outputs = net(images)
             loss = criterion(outputs, labels)
@@ -30,14 +29,16 @@ def train(net, trainloader, epochs: int, verbose=False) -> None:
         if verbose:
             print(f"Epoch {epoch+1}: train loss {epoch_loss}, accuracy {epoch_acc}")
             
-def test(net, testloader) -> Tuple[float, float]:  
+def test(net, testloader, device='cpu') -> Tuple[float, float]:  
     """Evaluate the network on the entire test set."""
     criterion = torch.nn.CrossEntropyLoss()
     correct, total, loss = 0, 0, 0.0
     net.eval()
+    net.to(device)
+
     with torch.no_grad():
         for batch in testloader:
-            images, labels = batch["image"].to(DEVICE), batch['label'].to(DEVICE)
+            images, labels = batch["image"].to(device), batch['label'].to(device)
             outputs = net(images)
             
             # Metrics
@@ -71,7 +72,8 @@ class Global_Net(nn.Module):
         self.model_type = model_type
         self.model = nn.Sequential(nn.Conv2d(1, 32, 5), 
                                    nn.ReLU(),
-                                   nn.MaxPool2d(2, 2))
+                                   nn.MaxPool2d(2, 2),
+)
         if self.model_type == "globalier":
             self.model.add_module("conv2", nn.Sequential(nn.Conv2d(32, 64, 5), 
                                   nn.ReLU(), nn.MaxPool2d(2, 2), nn.Flatten()))
