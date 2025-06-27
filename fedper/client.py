@@ -4,106 +4,119 @@ import torch
 from collections import OrderedDict
 import numpy as np
 from fedper.model import train, test
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Union
+from flwr.common import NDArrays, Scalar
 from flwr.common import Context
 import os
+from fedper.mobile_model import MobileNetModelManager 
+import logging
+log = logging.getLogger(__name__)
+# def set_parameters(net, parameters: List[np.ndarray]):
+#     params_dict = zip(net.state_dict().keys(), parameters)
+#     state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict})
+#     net.load_state_dict(state_dict, strict=True)
 
 
-def set_parameters(net, parameters: List[np.ndarray]):
-    params_dict = zip(net.state_dict().keys(), parameters)
-    state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict})
-    net.load_state_dict(state_dict, strict=True)
-
-
-def get_parameters(net) -> List[np.ndarray]:
-    return [val.cpu().numpy() for _, val in net.state_dict().items()]
+# def get_parameters(net) -> List[np.ndarray]:
+#     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
 
 class BaseClient(NumPyClient):
     
-    def __init__(self, partition_id, net, trainloader, valloader, epochs, log) -> None:
+    def __init__(self, partition_id: int, model_manager: type[MobileNetModelManager], config: Dict[str, Scalar]) -> None:
         self.partition_id = partition_id
-        self.net = net
-        self.trainloader = trainloader
-        self.valloader = valloader
-        self.epochs = epochs
-        self.log = log
+        self.model_manager = model_manager
+        self.epochs = config.client_config.num_epochs
         
-    def get_parameters(self, config) -> List[np.ndarray]:
+    def get_parameters(self, config: Dict[str, Scalar]) -> List[np.ndarray]:
         """Return the current parameters of the global network."""
-        print(f"[Client {self.partition_id}] get_parameters")
-        return get_parameters(self.net)
+        return self.model_manager.model.get_parameters()
+    
+    def set_parameters(
+        self, parameters: List[np.ndarray], evaluate: bool = False
+    ) -> None:
+        """Set the local_net model parameters to the received parameters.
+
+        Args:
+            parameters: parameters to set the model to.
+        """
+        
+        model_keys = [
+            k
+            for k in self.model_manager.model.state_dict().keys()
+            if k.startswith("_global_net") or k.startswith("_local_net")
+        ]
+        params_dict = zip(model_keys, parameters)
+
+        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+
+        self.model_manager.model.set_parameters(state_dict)
+        
+    def perform_train(
+        self,
+    ) -> Dict[str, Union[List[Dict[str, float]], int, float]]:
+        """Perform local_net training to the whole model.
+
+        Returns
+        -------
+            Dict with the train metrics.
+        """
+        epochs = self.epochs
+
+        self.model_manager.model.enable_global_net()
+        self.model_manager.model.enable_local_net()
+
+        return self.model_manager.train(
+            epochs=epochs,  
+        )
     
     def fit(self, parameters, config) -> List[np.ndarray]:
         """Train the network and return the updated parameters."""
-        print(f"[Client {self.partition_id}] fit, config: {config}")
-        set_parameters(self.net, parameters)
-        train(self.net, self.trainloader, epochs=self.epochs)
-        return get_parameters(self.net), len(self.trainloader), {}
+        log.info(f"[Client {self.partition_id}] fit, config: {config}")
+        self.set_parameters(parameters)
+        train_results = self.perform_train()
+        
+        log.info(f"Training Results ------- Client {self.partition_id}")
+        log.info(train_results)
+        
+        return self.get_parameters(config), self.model_manager.train_dataset_size(), {}
     
-    def evaluate(self, parameters, config) -> Tuple[float, int, dict]:
+    def evaluate(self, parameters: NDArrays, config: Dict[str, Scalar]) -> Tuple[float, int, dict]:
         """Evaluate the network and return the loss and accuracy."""
         print(f"[Client {self.partition_id}] evaluate, config: {config}")
-        set_parameters(self.net, parameters)
-        loss, accuracy = test(self.net, self.valloader)
-        return float(loss), len(self.valloader), {"accuracy": float(accuracy)}
+        self.set_parameters(parameters, evaluate=True)
+        loss, accuracy = self.model_manager.test().values()
+        return float(loss), self.model_manager.test_dataset_size(), {"accuracy": float(accuracy)}
 
 class PersonalizedClient(BaseClient):
-    def __init__(self, partition_id, net, trainloader, valloader, epochs, client_save_path, log) -> None:
-        self.client_local_model_path = f"{client_save_path}/local_net_{partition_id}.pth"
-        super().__init__(partition_id, net, trainloader, valloader, epochs, log)  
+    def __init__(self, partition_id: int, model_manager: type[MobileNetModelManager], config: Dict[str, Scalar]) -> None:
+        super().__init__(partition_id, model_manager, config)  
 
     def get_parameters(self, config) -> List[np.ndarray]:
-        """Return the current parameters of the global network."""
-        print(f"[Client {self.partition_id}] get_parameters")
-        return get_parameters(self.net.global_net)
+        """Return the current local_net global_net parameters."""
+        return [
+            val.cpu().numpy()
+            for _, val in self.model_manager.model.global_net.state_dict().items()
+        ]
+        
+    def set_parameters(self, parameters: List[np.ndarray], evaluate: bool =False) -> None:
+        """Set the global_net parameters to the received parameters.
 
-    def fit(self, parameters, config) -> List[np.ndarray]:
-        """Train the local network and return the updated parameters."""
-        print(f"[Client {self.partition_id}] fit, config: {config}")
-        if os.path.exists(self.client_local_model_path):
-            self.net.local_net.load_state_dict(torch.load(self.client_local_model_path))
-        set_parameters(self.net.global_net, parameters)
-        train(self.net, self.trainloader, epochs=self.epochs)
-        torch.save(self.net.local_net.state_dict(), self.client_local_model_path)
-        return get_parameters(self.net.global_net), len(self.trainloader), {}
-
-    def evaluate(self, parameters, config) -> Tuple[float, int, dict]:
-        """Evaluate the local network and return the loss and accuracy."""
-        print(f"[Client {self.partition_id}] evaluate, config: {config}")
-        if os.path.exists(self.client_local_model_path):
-            self.net.local_net.load_state_dict(torch.load(self.client_local_model_path))
-        set_parameters(self.net.global_net, parameters)
-        loss, accuracy = test(self.net, self.valloader)
-        return float(loss), len(self.valloader), {"accuracy": float(accuracy)}
+        Args:
+            parameters: parameters to set the body to.
+            evaluate: whether the client is evaluating or not.
+        """
+        global_model_keys = [
+            k
+            for k in self.model_manager.model.state_dict().keys()
+            if k.startswith("_global_net")
+        ]
+        
+        # Set global model
+        params_dict = zip(global_model_keys, parameters)
+        state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+        self.model_manager.model.set_parameters(state_dict)
+        
     
     
-# class RegularClient(NumPyClient):
-#     def __init__(self, partition_id, net, trainloader, valloader, client_save_path) -> None:
-#         super().__init__(partition_id, net, trainloader, valloader, client_save_path)    
-
-
-#     def get_parameters(self, config) -> List[np.ndarray]:
-#         """Return the current parameters of the global network."""
-#         print(f"[Client {self.partition_id}] get_parameters")
-#         return get_parameters(self.net.global_net)
-
-#     def fit(self, parameters, config) -> List[np.ndarray]:
-#         """Train the local network and return the updated parameters."""
-#         print(f"[Client {self.partition_id}] fit, config: {config}")
-#         if os.path.exists(self.client_local_model_path):
-#             self.net.local_net.load_state_dict(torch.load(self.client_local_model_path))
-#         set_parameters(self.net.global_net, parameters)
-#         train(self.net, self.trainloader, epochs=4)
-#         torch.save(self.net.local_net.state_dict(), self.client_local_model_path)
-#         return get_parameters(self.net.global_net), len(self.trainloader), {}
-
-#     def evaluate(self, parameters, config) -> Tuple[float, int, dict]:
-#         """Evaluate the local network and return the loss and accuracy."""
-#         print(f"[Client {self.partition_id}] evaluate, config: {config}")
-#         if os.path.exists(self.client_local_model_path):
-#             self.net.local_net.load_state_dict(torch.load(self.client_local_model_path))
-#         set_parameters(self.net.global_net, parameters)
-#         loss, accuracy = test(self.net, self.valloader)
-#         return float(loss), len(self.valloader), {"accuracy": float(accuracy)}
     

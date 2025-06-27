@@ -16,6 +16,11 @@ from fedper.client import PersonalizedClient, BaseClient
 from flwr.server import ServerConfig, ServerAppComponents
 from fedper.server import FedAvgWithModelSaving, weighted_average
 
+from fedper.mobile_model import MobileNetModelManager
+import logging
+
+log = logging.getLogger(__name__)
+import os
 
 def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], ServerAppComponents]:
     
@@ -67,7 +72,7 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
         # Instead of passing transforms to CIFAR10(..., transform=transform)
         # we will use this function to dataset.with_transform(apply_transforms)
         # The transforms object is exactly the same
-        batch["image"] = [pytorch_transforms(img) for img in batch["image"]]
+        batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
         return batch
 
     # Create train/val for each partition and wrap it into DataLoader
@@ -82,19 +87,18 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
     
 
 
-def get_client_fn(cfg: DictConfig, client_state_path: str, fds: FederatedDataset, log: Logger) -> Callable[[Context], BaseClient]:
+def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset) -> Callable[[Context], BaseClient]:
 
     def client_fn(context: Context) -> BaseClient:
         partition_id = context.node_config['partition-id']
-
+        client_local_net_model_path = f"{client_save_path}/local_net_{partition_id}.pth"
         trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
-        net = PersonalizedNet(cfg.model.num_classes, cfg.model.model_type).to(cfg.device)
-        if cfg.training_type == "base":
-            return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log, cfg.device).to_client()
-        elif cfg.training_type == "personalized":
-            print('[Client] Personalized Client created')
-            return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path, log, cfg.device).to_client()
-
+        mobile_net_manager = MobileNetModelManager(partition_id, cfg, trainloader, valloader, client_local_net_model_path, cfg.client_config.learning_rate)
+        return PersonalizedClient(partition_id, mobile_net_manager, cfg).to_client()
+        # if cfg.training_type == "base":
+        #     return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log).to_client()
+        # elif cfg.training_type == "personalized":
+        #     print('[Client] Personalized Client created')
+        #     return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path, log).to_client()
     return client_fn    
-    
 

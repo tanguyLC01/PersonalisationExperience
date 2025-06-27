@@ -7,6 +7,9 @@ import numpy as np
 import flwr
 import pickle
 
+import logging
+log = logging.Logger(__name__)
+
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     # Multiply accuracy of each client by number of examples used
     accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
@@ -23,7 +26,7 @@ class FedAvgWithModelSaving(FedAvg):
         super().__init__(*args, **kwargs)
         self.global_model_path = save_path
         os.makedirs(self.global_model_path, exist_ok=True)
-        
+
     def _save_global_model(self, server_round: int, parameters):
         ndarrays = flwr.common.parameters_to_ndarrays(parameters)
         data = {'global_parameters': ndarrays}
