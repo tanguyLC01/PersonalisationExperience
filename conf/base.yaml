@@ -1,7 +1,7 @@
-num_clients: 2
+num_clients: 3
 num_rounds: 10
 seed: 42
-session_name: test_tanguy
+session_name: test_gpu
 training_type: personalized
 
 client_config:
@@ -10,21 +10,25 @@ client_config:
   learning_rate: 0.01
   optimiser: "sgd"
   num_cpus: 10
-  num_gpus: 0
+  num_gpus: 1
 
-device: 'cpu'
+device: 'cuda'
   
 dataset:
-  name : "fashion_mnist"
+  name : "uoft-cs/cifar10"
   num_classes: 10
   seed: 42
   num_clients: ${num_clients}
   partitioner:
-    name: "dirichlet"
-    alpha:  0.2
+    name: "dirichletskew"
+    alpha:  0.1
+    alpha_rich: 2
+    alpha_poor: 0.6
 model:
   num_classes: 10
   model_type: localier
+  personalisation_level: 1
+  in_channels: 3
 
 server_config:
   fraction_fit: 1.0
@@ -36,4 +40,3 @@ server_config:
 hydra:
   run:
     dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
-

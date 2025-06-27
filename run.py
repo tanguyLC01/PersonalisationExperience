@@ -9,6 +9,7 @@ import logging
 from omegaconf import DictConfig
 
 from flwr_datasets.partitioner import DirichletPartitioner, IidPartitioner
+from fedper.partitioner import DirichletSkewedPartitioner
 from flwr.server import ServerApp
 from fedper.utils import get_server_fn, get_client_fn
 import matplotlib.pyplot as plt
@@ -35,7 +36,10 @@ def main(cfg: DictConfig) -> None:
     
     if cfg.dataset.partitioner.name == "dirichlet":
         partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
+    elif cfg.dataset.partitioner.name == "dirichletskew":
+        partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
     fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": partitioner})
+    
 
     fig, _, _ = plot_label_distributions(partitioner=fds.partitioners["train"],
     label_name="label",
@@ -50,7 +54,7 @@ def main(cfg: DictConfig) -> None:
 
     
     # Create a new client
-    client_fn = get_client_fn(cfg, client_save_path, fds, log)
+    client_fn = get_client_fn(cfg, client_save_path, fds)
     client = ClientApp(client_fn)
     print(client)
     # Create a new server
