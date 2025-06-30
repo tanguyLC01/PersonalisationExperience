@@ -11,7 +11,6 @@ from flwr_datasets import FederatedDataset
 from typing import Callable, Tuple
 from omegaconf import DictConfig
 
-from fedper.model import PersonalizedNet
 from fedper.client import PersonalizedClient, BaseClient
 from flwr.server import ServerConfig, ServerAppComponents
 from fedper.server import FedAvgWithModelSaving, weighted_average

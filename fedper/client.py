@@ -3,7 +3,6 @@ from typing import List
 import torch
 from collections import OrderedDict
 import numpy as np
-from fedper.model import train, test
 from typing import Tuple, List, Dict, Union
 from flwr.common import NDArrays, Scalar
 from flwr.common import Context
