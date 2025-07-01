@@ -12,10 +12,8 @@ from typing import Any, Dict, List, Tuple, Type, Union
 from omegaconf import DictConfig
 from torch import Tensor
 from torch import nn as nn
-
-import logging
-log = logging.getLogger(__name__)
-
+from flwr.common.logger import log
+from logging import INFO
 
 class ModelSplit(ABC, nn.Module):
     """Abstract class for splitting a model into global_net and local_net."""
@@ -124,8 +122,9 @@ class ModelSplit(ABC, nn.Module):
         for param in self.global_net.parameters():
             param.requires_grad = False
 
-    def forward(self, inputs: Any) -> Any:
+    def forward(self, inputs: Any, feature: bool = False) -> Any:
         """Forward inputs through the global_net and the local_net."""
+        log(INFO, "parent_class")
         x = self.global_net(inputs)
         return self.local_net(x)
     
@@ -153,23 +152,6 @@ class ModelManager(ABC):
         self.config = config
         self._model = model_split_class(self._create_model())
         
-    def _get_eig_vals(self, feats):
-        # center features
-        feats = feats - torch.mean(feats, dim=0)
-        avg_cov_feat = None
-        for idx in range(feats.shape[0]):
-            # build feature cov matrix
-            cov_feat = torch.mm(feats[idx].unsqueeze(1), feats[idx].unsqueeze(1).t())
-            # average cov rep
-            if avg_cov_feat is None:
-                avg_cov_feat = cov_feat
-            else:
-                avg_cov_feat += cov_feat
-        avg_cov_feat /= feats.shape[0]
-
-        _, eig_vals, _ = torch.linalg.svd(avg_cov_feat) # for symmetric matrix, eig_vals == singular values
-        return eig_vals.numpy()
-    
 
     @abstractmethod
     def _create_model(self) -> nn.Module:

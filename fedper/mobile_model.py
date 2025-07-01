@@ -8,8 +8,8 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from fedper.model import ModelManager, ModelSplit
-
-
+from flwr.common.logger import log
+from logging import INFO
 # Set model architecture
 ARCHITECTURE = {
     "layer_1": {"conv_dw": [32, 64, 1]},
@@ -26,6 +26,22 @@ ARCHITECTURE = {
     "layer_12": {"conv_dw": [512, 1024, 2]},
     "layer_13": {"conv_dw": [1024, 1024, 1]},
 }
+
+
+class LayerHook:
+    def __init__(self, model):
+        self.model = model
+        self.feature_map = None
+        self.hook()
+
+    def hook(self):
+        def forward_hook(module, input, output):
+            self.feature_map = output.detach()
+    
+        # Register hooks on the specified layer
+        last_layer = list(self.model.children())[-1]
+        last_layer.register_forward_hook(forward_hook)
+
 
 
 class MobileNet(nn.Module):
@@ -57,6 +73,8 @@ class MobileNet(nn.Module):
                 nn.BatchNorm2d(oup),
                 nn.ReLU(inplace=True),
             )
+            
+
 
         self.global_net = nn.Sequential()
         self.global_net.add_module("initial_batch_norm", conv_bn(in_channels, 32, 2))
@@ -67,53 +85,7 @@ class MobileNet(nn.Module):
         self.global_net.add_module("avg_pool", nn.AdaptiveAvgPool2d(output_size=(1, 1)))
         self.global_net.add_module("flatten", nn.Flatten())
         self.global_net.add_module("fc", nn.Linear(1024, num_classes))
-        
         self.local_net = nn.Identity()
-
-        # if num_local_net_layers == 1:
-        #     self.local_net = nn.Sequential(
-        #         nn.AvgPool2d([7]), nn.Flatten(), nn.Linear(1024, num_classes)
-        #     )
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # elif num_local_net_layers == 2:
-        #     self.local_net = nn.Sequential(
-        #         conv_dw(1024, 1024, 1),
-        #         nn.AvgPool2d([7]),
-        #         nn.Flatten(),
-        #         nn.Linear(1024, num_classes),
-        #     )
-        #     self.global_net.conv_dw_13 = nn.Identity()
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # elif num_local_net_layers == 3:
-        #     self.local_net = nn.Sequential(
-        #         conv_dw(512, 1024, 2),
-        #         conv_dw(1024, 1024, 1),
-        #         nn.AvgPool2d([7]),
-        #         nn.Flatten(),
-        #         nn.Linear(1024, num_classes),
-        #     )
-        #     self.global_net.conv_dw_12 = nn.Identity()
-        #     self.global_net.conv_dw_13 = nn.Identity()
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # elif num_local_net_layers == 4:
-        #     self.local_net = nn.Sequential(
-        #         conv_dw(512, 512, 1),
-        #         conv_dw(512, 1024, 2),
-        #         conv_dw(1024, 1024, 1),
-        #         nn.AvgPool2d([7]),
-        #         nn.Flatten(),
-        #         nn.Linear(1024, num_classes),
-        #     )
-        #     self.global_net.conv_dw_11 = nn.Identity()
-        #     self.global_net.conv_dw_12 = nn.Identity()
-        #     self.global_net.conv_dw_13 = nn.Identity()
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # else:
-        #     raise NotImplementedError("Number of local_net layers not implemented.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of the model."""
@@ -126,6 +98,15 @@ class MobileNetModelSplit(ModelSplit):
 
     def _get_model_parts(self, model: MobileNet) -> Tuple[nn.Module, nn.Module]:
         return model.global_net, model.local_net
+    
+    def forward(self, x: torch.Tensor, feature: bool = False) -> torch.Tensor:
+        """Forward pass of the model."""
+        hook = LayerHook(self.global_net)
+        x = self.global_net(x)
+        x = self.local_net(x)
+        if feature:
+            return nn.ReLU()(hook.feature_map), x
+        return x
 
 
 class MobileNetModelManager(ModelManager):
@@ -155,6 +136,26 @@ class MobileNetModelManager(ModelManager):
         self.device = self.config.device
         self.client_save_path = client_save_path if client_save_path != "" else None
         self.learning_rate = learning_rate
+        self.client_feats = None
+        self.batch_size = self.config.client_config.batch_size
+        
+    def _get_eig_vals(self, feats):
+        # center features
+        feats = feats - torch.mean(feats, dim=0)
+        avg_cov_feat = None
+        for idx in range(feats.shape[0]):
+            # build feature cov matrix
+            cov_feat = torch.mm(feats[idx].unsqueeze(1), feats[idx].unsqueeze(1).t())
+            # average cov rep
+            if avg_cov_feat is None:
+                avg_cov_feat = cov_feat
+            else:
+                avg_cov_feat += cov_feat
+        avg_cov_feat /= feats.shape[0]
+
+        _, eig_vals, _ = torch.linalg.svd(avg_cov_feat) # for symmetric matrix, eig_vals == singular values
+        return eig_vals.numpy()
+        
 
     def _create_model(self) -> nn.Module:
         """Return MobileNet-v1 model to be splitted into local_net and global_net."""
@@ -195,7 +196,7 @@ class MobileNetModelManager(ModelManager):
             except FileNotFoundError:   
                 print("No client state found, training from scratch.")
                 pass
-
+            
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(
             self.model.parameters(), lr=self.learning_rate)
@@ -203,10 +204,15 @@ class MobileNetModelManager(ModelManager):
         loss: torch.Tensor = 0.0
         # self.model.train()
         for _ in range(epochs):
-            for batch in self.trainloader:
+            for step, batch in enumerate(self.trainloader):
                 optimizer.zero_grad()
                 images, labels = batch['img'], batch['label']
-                outputs = self.model(images.to(self.device))
+                feat, outputs = self.model(images.to(self.device), feature=True)
+                if self.client_feats is None:
+                    self.client_feats = torch.zeros(len(self.trainloader)*self.batch_size, feat.shape[1])
+                    log(INFO, self.client_feats.shape)
+                    log(INFO, self.batch_size)
+                self.client_feats[step*self.batch_size: (step+1)*self.batch_size] = feat.detach().cpu()
                 labels = labels.to(self.device)
                 loss = criterion(outputs, labels)
                 loss.backward()
@@ -217,8 +223,10 @@ class MobileNetModelManager(ModelManager):
         # Save client state (local_net)
         if self.client_save_path is not None:
             torch.save(self.model.local_net.state_dict(), self.client_save_path)
+        
+        Gram_trace = sum(self._get_eig_vals(self.client_feats))
 
-        return {"loss": loss.item(), "accuracy": correct / total}
+        return {"loss": loss.item(), "accuracy": correct / total, "Gram_trace": Gram_trace}
 
     def test(
         self,

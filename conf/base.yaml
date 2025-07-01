@@ -1,7 +1,7 @@
 num_clients: 3
 num_rounds: 50
 seed: 42
-session_name: fully_local_3_clients
+session_name: test_gram
 
 client_config:
   num_epochs: 4 
