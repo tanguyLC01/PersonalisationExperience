@@ -64,7 +64,9 @@ def main(cfg: DictConfig) -> None:
         log.info(f"------------------ Training Client {client_id} ------------------")
         trainloader, valloader, _ = load_datasets(client_id, fds, cfg)
         model = MobileNet(0, cfg.model.num_classes).to(cfg.device)
-
+        temp = model.local_net
+        model.local_net = model.global_net
+        model.global_net = temp
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(
             model.parameters(), lr=cfg.client_config.learning_rate)
@@ -126,7 +128,7 @@ def main(cfg: DictConfig) -> None:
         
         plt.savefig(f'{log_save_path}/train_loss_val_accuracy_{client_id}')
         
-        torch.save(model.state_dict(), f'{client_save_path}/local_net_{client_id}')
+        torch.save(model.state_dict(), f'{client_save_path}/local_net_{client_id}.pth')
     
     
 if __name__ == "__main__":

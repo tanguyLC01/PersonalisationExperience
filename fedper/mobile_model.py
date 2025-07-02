@@ -1,6 +1,6 @@
 """MobileNet-v1 model, model manager and model split."""
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 import torch
 import torch.nn as nn
@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 from fedper.model import ModelManager, ModelSplit
 from flwr.common.logger import log
 from logging import INFO
+from sklearn.metrics import classification_report
+
 # Set model architecture
 ARCHITECTURE = {
     "layer_1": {"conv_dw": [32, 64, 1]},
@@ -118,8 +120,7 @@ class MobileNetModelManager(ModelManager):
         config: DictConfig,
         trainloader: DataLoader,
         testloader: DataLoader,
-        client_save_path: Optional[str] = "",
-        learning_rate: float = 0.01,
+        client_save_path: Optional[str] = ""    
     ):
         """Initialize the attributes of the model manager.
 
@@ -135,7 +136,7 @@ class MobileNetModelManager(ModelManager):
         self.trainloader, self.testloader = trainloader, testloader
         self.device = self.config.device
         self.client_save_path = client_save_path if client_save_path != "" else None
-        self.learning_rate = learning_rate
+        self.learning_rate = self.config.client_config.learning_rate
         self.client_feats = None
         self.batch_size = self.config.client_config.batch_size
         
@@ -229,8 +230,9 @@ class MobileNetModelManager(ModelManager):
         return {"loss": loss.item(), "accuracy": correct / total, "Gram_trace": Gram_trace}
 
     def test(
-        self,
-    ) -> Dict[str, float]:
+        self, 
+        full_report: bool = False
+    ) -> Dict[str, Any]:
         """Test the model maintained in self.model.
 
         Returns
@@ -243,24 +245,31 @@ class MobileNetModelManager(ModelManager):
 
         criterion = torch.nn.CrossEntropyLoss()
         correct, total, loss = 0, 0, 0.0
-        # self.model.eval()
+        if full_report:
+            all_preds = []
+            all_targets = []
         with torch.no_grad():
             for batch in self.testloader:
                 images, labels = batch['img'], batch['label']
                 outputs = self.model(images.to(self.device))
                 labels = labels.to(self.device)
+                predicted = torch.max(outputs.data, 1)[1]
                 loss += criterion(outputs, labels).item()
                 total += labels.size(0)
-                correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
-        print("Test Accuracy: {:.4f}".format(correct / total))
-
-        if self.client_save_path is not None:
-            torch.save(self.model.local_net.state_dict(), self.client_save_path)
-
-        return {
+                correct += (predicted == labels).sum().item()
+                if full_report:
+                    all_preds.extend(predicted.cpu().numpy())
+                    all_targets.extend(labels.cpu().numpy())
+        final_dict = {
             "loss": loss / len(self.testloader.dataset),
             "accuracy": correct / total,
         }
+        if full_report:    
+            final_dict['report'] = classification_report(all_targets, all_preds, output_dict=True, zero_division=0)
+            
+        print("Test Accuracy: {:.4f}".format(correct / total))
+
+        return final_dict
         
 
     def train_dataset_size(self) -> int:

@@ -80,8 +80,9 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
         partition_train_test["train"], batch_size=cfg.client_config.batch_size, shuffle=True
     )
     valloader = DataLoader(partition_train_test["test"], batch_size=cfg.client_config.batch_size)
-    testset = fds.load_split("test").with_transform(apply_transforms)
+    testset = fds.load_partition(partition_id, split='test').with_transform(apply_transforms)
     testloader = DataLoader(testset, batch_size=cfg.client_config.batch_size)
+        
     return trainloader, valloader, testloader
     
 
@@ -92,7 +93,7 @@ def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset)
         partition_id = context.node_config['partition-id']
         client_local_net_model_path = f"{client_save_path}/local_net_{partition_id}.pth"
         trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
-        mobile_net_manager = MobileNetModelManager(partition_id, cfg, trainloader, valloader, client_local_net_model_path, cfg.client_config.learning_rate)
+        mobile_net_manager = MobileNetModelManager(partition_id, cfg, trainloader, valloader, client_local_net_model_path)
         return PersonalizedClient(partition_id, mobile_net_manager, cfg).to_client()
         # if cfg.training_type == "base":
         #     return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log).to_client()
