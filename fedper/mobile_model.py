@@ -1,6 +1,6 @@
 """MobileNet-v1 model, model manager and model split."""
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 import torch
 import torch.nn as nn
@@ -8,7 +8,9 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
 from fedper.model import ModelManager, ModelSplit
-
+from flwr.common.logger import log
+from logging import INFO
+from sklearn.metrics import classification_report
 
 # Set model architecture
 ARCHITECTURE = {
@@ -57,6 +59,8 @@ class MobileNet(nn.Module):
                 nn.BatchNorm2d(oup),
                 nn.ReLU(inplace=True),
             )
+            
+
 
         self.global_net = nn.Sequential()
         self.global_net.add_module("initial_batch_norm", conv_bn(in_channels, 32, 2))
@@ -67,53 +71,7 @@ class MobileNet(nn.Module):
         self.global_net.add_module("avg_pool", nn.AdaptiveAvgPool2d(output_size=(1, 1)))
         self.global_net.add_module("flatten", nn.Flatten())
         self.global_net.add_module("fc", nn.Linear(1024, num_classes))
-        
         self.local_net = nn.Identity()
-
-        # if num_local_net_layers == 1:
-        #     self.local_net = nn.Sequential(
-        #         nn.AvgPool2d([7]), nn.Flatten(), nn.Linear(1024, num_classes)
-        #     )
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # elif num_local_net_layers == 2:
-        #     self.local_net = nn.Sequential(
-        #         conv_dw(1024, 1024, 1),
-        #         nn.AvgPool2d([7]),
-        #         nn.Flatten(),
-        #         nn.Linear(1024, num_classes),
-        #     )
-        #     self.global_net.conv_dw_13 = nn.Identity()
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # elif num_local_net_layers == 3:
-        #     self.local_net = nn.Sequential(
-        #         conv_dw(512, 1024, 2),
-        #         conv_dw(1024, 1024, 1),
-        #         nn.AvgPool2d([7]),
-        #         nn.Flatten(),
-        #         nn.Linear(1024, num_classes),
-        #     )
-        #     self.global_net.conv_dw_12 = nn.Identity()
-        #     self.global_net.conv_dw_13 = nn.Identity()
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # elif num_local_net_layers == 4:
-        #     self.local_net = nn.Sequential(
-        #         conv_dw(512, 512, 1),
-        #         conv_dw(512, 1024, 2),
-        #         conv_dw(1024, 1024, 1),
-        #         nn.AvgPool2d([7]),
-        #         nn.Flatten(),
-        #         nn.Linear(1024, num_classes),
-        #     )
-        #     self.global_net.conv_dw_11 = nn.Identity()
-        #     self.global_net.conv_dw_12 = nn.Identity()
-        #     self.global_net.conv_dw_13 = nn.Identity()
-        #     self.global_net.avg_pool = nn.Identity()
-        #     self.global_net.fc = nn.Identity()
-        # else:
-        #     raise NotImplementedError("Number of local_net layers not implemented.")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of the model."""
@@ -137,8 +95,7 @@ class MobileNetModelManager(ModelManager):
         config: DictConfig,
         trainloader: DataLoader,
         testloader: DataLoader,
-        client_save_path: Optional[str] = "",
-        learning_rate: float = 0.01,
+        client_save_path: Optional[str] = ""    
     ):
         """Initialize the attributes of the model manager.
 
@@ -154,7 +111,11 @@ class MobileNetModelManager(ModelManager):
         self.trainloader, self.testloader = trainloader, testloader
         self.device = self.config.device
         self.client_save_path = client_save_path if client_save_path != "" else None
-        self.learning_rate = learning_rate
+        self.learning_rate = self.config.client_config.learning_rate
+        self.client_feats = None
+        self.batch_size = self.config.client_config.batch_size
+
+        
 
     def _create_model(self) -> nn.Module:
         """Return MobileNet-v1 model to be splitted into local_net and global_net."""
@@ -195,16 +156,15 @@ class MobileNetModelManager(ModelManager):
             except FileNotFoundError:   
                 print("No client state found, training from scratch.")
                 pass
-
+            
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=self.learning_rate, momentum=0.9
-        )
+            self.model.parameters(), lr=self.learning_rate)
         correct, total = 0, 0
         loss: torch.Tensor = 0.0
         # self.model.train()
         for _ in range(epochs):
-            for batch in self.trainloader:
+            for step, batch in enumerate(self.trainloader):
                 optimizer.zero_grad()
                 images, labels = batch['img'], batch['label']
                 outputs = self.model(images.to(self.device))
@@ -218,12 +178,14 @@ class MobileNetModelManager(ModelManager):
         # Save client state (local_net)
         if self.client_save_path is not None:
             torch.save(self.model.local_net.state_dict(), self.client_save_path)
+        
 
         return {"loss": loss.item(), "accuracy": correct / total}
 
     def test(
-        self,
-    ) -> Dict[str, float]:
+        self, 
+        full_report: bool = False
+    ) -> Dict[str, Any]:
         """Test the model maintained in self.model.
 
         Returns
@@ -236,24 +198,34 @@ class MobileNetModelManager(ModelManager):
 
         criterion = torch.nn.CrossEntropyLoss()
         correct, total, loss = 0, 0, 0.0
-        # self.model.eval()
+        if full_report:
+            all_preds = []
+            all_targets = []
         with torch.no_grad():
             for batch in self.testloader:
                 images, labels = batch['img'], batch['label']
                 outputs = self.model(images.to(self.device))
                 labels = labels.to(self.device)
+                predicted = torch.max(outputs.data, 1)[1]
                 loss += criterion(outputs, labels).item()
                 total += labels.size(0)
-                correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
-        print("Test Accuracy: {:.4f}".format(correct / total))
-
-        if self.client_save_path is not None:
-            torch.save(self.model.local_net.state_dict(), self.client_save_path)
-
-        return {
+                correct += (predicted == labels).sum().item()
+                if full_report:
+                    all_preds.extend(predicted.cpu().numpy())
+                    all_targets.extend(labels.cpu().numpy())
+                    
+        final_dict = {
             "loss": loss / len(self.testloader.dataset),
             "accuracy": correct / total,
         }
+        
+        if full_report:    
+            final_dict['report'] = classification_report(all_targets, all_preds, output_dict=True, zero_division=0)
+            
+        print("Test Accuracy: {:.4f}".format(correct / total))
+
+        return final_dict
+        
 
     def train_dataset_size(self) -> int:
         """Return train data set size."""
