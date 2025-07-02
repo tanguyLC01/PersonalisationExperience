@@ -152,6 +152,24 @@ class ModelManager(ABC):
         self.client_id = client_id
         self.config = config
         self._model = model_split_class(self._create_model())
+        
+    def _get_eig_vals(self, feats):
+        # center features
+        feats = feats - torch.mean(feats, dim=0)
+        avg_cov_feat = None
+        for idx in range(feats.shape[0]):
+            # build feature cov matrix
+            cov_feat = torch.mm(feats[idx].unsqueeze(1), feats[idx].unsqueeze(1).t())
+            # average cov rep
+            if avg_cov_feat is None:
+                avg_cov_feat = cov_feat
+            else:
+                avg_cov_feat += cov_feat
+        avg_cov_feat /= feats.shape[0]
+
+        _, eig_vals, _ = torch.linalg.svd(avg_cov_feat) # for symmetric matrix, eig_vals == singular values
+        return eig_vals.numpy()
+    
 
     @abstractmethod
     def _create_model(self) -> nn.Module:

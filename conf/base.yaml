@@ -1,7 +1,7 @@
 num_clients: 3
-num_rounds: 10
+num_rounds: 50
 seed: 42
-session_name: test_gpu
+session_name: fully_local_3_clients
 
 client_config:
   num_epochs: 4 
@@ -9,9 +9,9 @@ client_config:
   learning_rate: 0.01
   optimiser: "sgd"
   num_cpus: 10
-  num_gpus: 0
+  num_gpus: 1
 
-device: 'cpu'
+device: 'cuda'
   
 dataset:
   name : "uoft-cs/cifar10"
