@@ -90,8 +90,8 @@ class ModelSplit(ABC, nn.Module):
         
     def personalise_last_module(self):
         last_child = list(self.global_net.children())[-1]
-        self.local_net = nn.Sequential(last_child, self.local_net)
-        self.global_net = torch.nn.Sequential(*(list(self.global_net.children())[:-1]))
+        self._local_net = nn.Sequential(last_child, *(list(self.local_net.children())))
+        self._global_net = nn.Sequential(*(list(self.global_net.children())[:-1]))
 
     def set_parameters(self, state_dict: Dict[str, Tensor]) -> None:
         """Set model parameters.

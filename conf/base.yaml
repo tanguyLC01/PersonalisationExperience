@@ -1,10 +1,10 @@
 num_clients: 3
 num_rounds: 50
 seed: 42
-session_name: fully_local_3_clients
+session_name: fully_local_3_clients(1)
 
 client_config:
-  num_epochs: 4 
+  num_epochs: 4
   batch_size: 32
   learning_rate: 0.01
   optimiser: "sgd"
@@ -26,7 +26,7 @@ dataset:
     num_classes_per_partition: [9, 3, 3]  # Example for three partitions
 model:
   num_classes: 10
-  personalisation_level: 1
+  personalisation_level: 14
   in_channels: 3
 
 server_config:

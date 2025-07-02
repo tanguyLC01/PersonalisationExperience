@@ -68,9 +68,9 @@ class MobileNet(nn.Module):
             for _, value in self.architecture[f"layer_{i}"].items():
                 self.global_net.add_module(f"conv_dw_{i}", conv_dw(*value))
 
-        self.global_net.add_module("avg_pool", nn.AdaptiveAvgPool2d(output_size=(1, 1)))
-        self.global_net.add_module("flatten", nn.Flatten())
-        self.global_net.add_module("fc", nn.Linear(1024, num_classes))
+        self.global_net.add_module('classification_module', nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(1, 1))
+                                                                          , nn.Flatten()
+                                                                          ,nn.Linear(1024, num_classes)))
         self.local_net = nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -135,7 +135,8 @@ class MobileNetModelManager(ModelManager):
 
     def train(
         self,
-        epochs: int = 1
+        epochs: int = 1,
+        verbose: bool = False,
         ) -> Dict[str, Union[List[Dict[str, float]], int, float]]:
         """Train the model maintained in self.model.
 
@@ -162,9 +163,9 @@ class MobileNetModelManager(ModelManager):
             self.model.parameters(), lr=self.learning_rate)
         correct, total = 0, 0
         loss: torch.Tensor = 0.0
-        # self.model.train()
+        self.model.train()
         for _ in range(epochs):
-            for step, batch in enumerate(self.trainloader):
+            for batch in self.trainloader:
                 optimizer.zero_grad()
                 images, labels = batch['img'], batch['label']
                 outputs = self.model(images.to(self.device))
@@ -174,7 +175,9 @@ class MobileNetModelManager(ModelManager):
                 optimizer.step()
                 total += labels.size(0)
                 correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
-
+            if verbose and _ >= epochs // 10 and _ % 10 == 0:
+                log(INFO, f"Epoch {_+1}/{epochs}, Loss: {loss / len(self.trainloader):.4f}")
+                
         # Save client state (local_net)
         if self.client_save_path is not None:
             torch.save(self.model.local_net.state_dict(), self.client_save_path)
@@ -195,7 +198,8 @@ class MobileNetModelManager(ModelManager):
         # Load client state (local_net)
         if self.client_save_path is not None:
             self.model.local_net.load_state_dict(torch.load(self.client_save_path))
-
+        
+        self.model.eval()
         criterion = torch.nn.CrossEntropyLoss()
         correct, total, loss = 0, 0, 0.0
         if full_report:

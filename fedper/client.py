@@ -52,7 +52,7 @@ class BaseClient(NumPyClient):
         self.model_manager.model.set_parameters(state_dict)
         
     def perform_train(
-        self,
+        self, verbose: bool = False
     ) -> Dict[str, Union[List[Dict[str, float]], int, float]]:
         """Perform local_net training to the whole model.
 

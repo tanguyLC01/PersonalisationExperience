@@ -2,8 +2,6 @@ import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from flwr.client import ClientApp
-from flwr.simulation import run_simulation
 import numpy as np
 import random
 from flwr_datasets import FederatedDataset
@@ -17,13 +15,11 @@ from flwr_datasets.partitioner import DirichletPartitioner, IidPartitioner
 from fedper.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
 from flwr.server import ServerApp
 from fedper.utils import load_datasets
-from fedper.mobile_model import MobileNet
+from fedper.mobile_model import MobileNet, MobileNetModelManager
 import matplotlib.pyplot as plt
-from flwr_datasets.visualization import plot_label_distributions
-
-
-log = logging.getLogger(__name__)
-
+from fedper.client import BaseClient
+from flwr.common.logger import log
+from logging import INFO
 
 @hydra.main(config_path='../conf', config_name="base", version_base=None)
 def main(cfg: DictConfig) -> None:
@@ -31,7 +27,7 @@ def main(cfg: DictConfig) -> None:
     random.seed(cfg.seed) 
 
     log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    log.info(f"Saving logs to {log_save_path}")
+    log(INFO, f"Saving logs to {log_save_path}")
     client_save_path = (
             f"{log_save_path}/client_states"
         )
@@ -61,19 +57,19 @@ def main(cfg: DictConfig) -> None:
     
     epochs = cfg.client_config.num_epochs * cfg.num_rounds
     for client_id in range(cfg.num_clients):
-        log.info(f"------------------ Training Client {client_id} ------------------")
-        trainloader, valloader, _ = load_datasets(client_id, fds, cfg)
-        model = MobileNet(0, cfg.model.num_classes).to(cfg.device)
-        temp = model.local_net
-        model.local_net = model.global_net
-        model.global_net = temp
+        log(INFO, f"------------------ Training Client {client_id} ------------------")
+        trainloader, valloader, _  = load_datasets(client_id, fds, cfg)
+        model_manager = MobileNetModelManager(client_id, cfg, trainloader, valloader, f'{client_save_path}/local_net_{client_id}.pth')
+        for _ in range(cfg.model.personalisation_level):
+            model_manager.model.personalise_last_module()
+        
+        model = model_manager.model
+
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(
             model.parameters(), lr=cfg.client_config.learning_rate)
         correct, total = 0, 0
         
-        # self.model.train()
-           
         train_losses = []  
         val_accuracies = []
         for _ in range(epochs): 
@@ -105,31 +101,8 @@ def main(cfg: DictConfig) -> None:
             val_accuracy = correct / total
             val_accuracies.append(val_accuracy)
             if _ % 10 == 0 and _ >= 10:
-                log.info(f"Epoch {_+1}/{epochs}, Loss: {avg_train_loss:.4f}, Test Accuracy: {val_accuracy:.4f}")
+                log(INFO, f"Epoch {_+1}/{epochs}, Loss: {avg_train_loss:.4f}, Test Accuracy: {val_accuracy:.4f}")
         
-        # Plot Loss and Accuracy
-        plt.figure(figsize=(12, 5))
-
-        # Loss Plot
-        plt.subplot(1, 2, 1)
-        plt.plot(range(1, epochs + 1), train_losses, marker='o', linestyle='-', color='b', label='Training Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.title('Training Loss Over Epochs')
-        plt.legend()
-        
-        # Accuracy Plot
-        plt.subplot(1, 2, 2)
-        plt.plot(range(1, epochs + 1), val_accuracies, marker='s', linestyle='-', color='r', label='Test Accuracy')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.title('Test Accuracy Over Epochs')
-        plt.legend()
-        
-        plt.savefig(f'{log_save_path}/train_loss_val_accuracy_{client_id}')
-        
-        torch.save(model.state_dict(), f'{client_save_path}/local_net_{client_id}.pth')
-    
     
 if __name__ == "__main__":
     main()

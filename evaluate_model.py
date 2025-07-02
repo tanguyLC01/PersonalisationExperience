@@ -46,11 +46,11 @@ def main() -> None:
     fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={'train': partitioner_train, "test": partitioner_test})    
     trainloader, _, testloader = load_datasets(client_id, fds, cfg)
     
-    test_targets = []
-    for batch in testloader:
-        test_targets.extend(batch['label'].cpu().numpy())
-    test_targets = np.array(test_targets)
-    unique_test, counts_test = np.unique(test_targets, return_counts=True)
+    train_targets = []
+    for batch in trainloader:
+        train_targets.extend(batch['label'].cpu().numpy())
+    train_targets = np.array(train_targets)
+    unique_test, counts_test = np.unique(train_targets, return_counts=True)
     print("Support (number of samples) for each class in the test split (from test_loader):")
     for cls, count in zip(unique_test, counts_test):
         print(f"Class {cls}: {count} samples")
@@ -59,13 +59,15 @@ def main() -> None:
     # We set the global_parameters as there is no server for testing. The managers handles the local net part on its own.
     if os.path.exists(f'{log_directory}/server_state'):
         load_global_weights(f'{log_directory}/server_state/parameters_round_{cfg.num_rounds}.pkl', mobile_net_manager)
-    # If there is no server state directory, it means the model are fully local. Hence, we swap the global and local net
-    else:
+    else: # It means the model is fully localised
         mobile_net_manager.client_save_path = None
-        mobile_net_manager.model.global_model = torch.load(f'{log_directory}/client_states/local_net_{client_id}.pth')
+        mobile_net_manager.model._local_net = torch.nn.Sequential(*(list(mobile_net_manager.model.global_net.children())[:-1]))
+        mobile_net_manager.model._global_net = torch.nn.Identity()
         print(mobile_net_manager.model)
-
-
+        state_dict = torch.load(f'{log_directory}/client_states/local_net_{client_id}.pth')
+        state_dict_cleaned = {k[11:]: state_dict[k] for k in state_dict.keys()}
+        mobile_net_manager.model.load_state_dict(state_dict_cleaned)
+        
     res_dict = mobile_net_manager.test(full_report=True)
 
     # Save metrics to log file
