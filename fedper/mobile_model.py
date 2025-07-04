@@ -35,7 +35,6 @@ class MobileNet(nn.Module):
 
     def __init__(
         self,
-        num_local_net_layers: int = 1,
         num_classes: int = 10,
         in_channels: int = 3, 
     ) -> None:
@@ -59,8 +58,6 @@ class MobileNet(nn.Module):
                 nn.BatchNorm2d(oup),
                 nn.ReLU(inplace=True),
             )
-            
-
 
         self.global_net = nn.Sequential()
         self.global_net.add_module("initial_batch_norm", conv_bn(in_channels, 32, 2))
@@ -73,6 +70,8 @@ class MobileNet(nn.Module):
                                                                           ,nn.Linear(1024, num_classes)))
         self.local_net = nn.Identity()
 
+            
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass of the model."""
         x = self.global_net(x)
@@ -81,6 +80,7 @@ class MobileNet(nn.Module):
 
 class MobileNetModelSplit(ModelSplit):
     """Split MobileNet model into global_net and local_net."""
+    
 
     def _get_model_parts(self, model: MobileNet) -> Tuple[nn.Module, nn.Module]:
         return model.global_net, model.local_net
@@ -112,23 +112,21 @@ class MobileNetModelManager(ModelManager):
         self.device = self.config.device
         self.client_save_path = client_save_path if client_save_path != "" else None
         self.learning_rate = self.config.client_config.learning_rate
-        self.client_feats = None
         self.batch_size = self.config.client_config.batch_size
-
         
+        for _ in range(config.model.personalisation_level[client_id]):
+            self._model.personalise_last_module()        
 
     def _create_model(self) -> nn.Module:
         """Return MobileNet-v1 model to be splitted into local_net and global_net."""
         try:
             return MobileNet(
-                num_local_net_layers=self.config["model"]["personalisation_level"],
                 num_classes=self.config["model"]["num_classes"],
                 in_channels=self.config["model"]["in_channels"]
             ).to(self.device)
         except AttributeError:
             self.device = self.config.device
             return MobileNet(
-                num_local_net_layers=self.config["model"]["personalisation_level"],
                 num_classes=self.config["model"]["num_classes"],
                 in_channels=self.config["model"]["in_channels"]
             ).to(self.device)
@@ -155,7 +153,7 @@ class MobileNetModelManager(ModelManager):
             try:
                 self.model.local_net.load_state_dict(torch.load(self.client_save_path))
             except FileNotFoundError:   
-                print("No client state found, training from scratch.")
+                log(INFO, "No client state found, training from scratch.")
                 pass
             
         criterion = torch.nn.CrossEntropyLoss()

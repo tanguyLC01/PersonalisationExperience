@@ -60,7 +60,7 @@ def main(cfg: DictConfig) -> None:
         log(INFO, f"------------------ Training Client {client_id} ------------------")
         trainloader, valloader, _  = load_datasets(client_id, fds, cfg)
         model_manager = MobileNetModelManager(client_id, cfg, trainloader, valloader, f'{client_save_path}/local_net_{client_id}.pth')
-        for _ in range(cfg.model.personalisation_level):
+        for _ in range(cfg.model.personalisation_level[client_id]):
             model_manager.model.personalise_last_module()
         
         model = model_manager.model
@@ -102,6 +102,29 @@ def main(cfg: DictConfig) -> None:
             val_accuracies.append(val_accuracy)
             if _ % 10 == 0 and _ >= 10:
                 log(INFO, f"Epoch {_+1}/{epochs}, Loss: {avg_train_loss:.4f}, Test Accuracy: {val_accuracy:.4f}")
+        
+        # Plot Loss and Accuracy
+        plt.figure(figsize=(12, 5))
+
+        # Loss Plot
+        plt.subplot(1, 2, 1)
+        plt.plot(range(1, epochs + 1), train_losses, marker='o', linestyle='-', color='b', label='Training Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title('Training Loss Over Epochs')
+        plt.legend()
+        
+        # Accuracy Plot
+        plt.subplot(1, 2, 2)
+        plt.plot(range(1, epochs + 1), val_accuracies, marker='s', linestyle='-', color='r', label='Test Accuracy')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.title('Test Accuracy Over Epochs')
+        plt.legend()
+        
+        plt.savefig(f'{log_save_path}/train_loss_val_accuracy_{client_id}')
+        
+        torch.save(model.state_dict(), f'{client_save_path}/local_net_{client_id}.pth')
         
     
 if __name__ == "__main__":

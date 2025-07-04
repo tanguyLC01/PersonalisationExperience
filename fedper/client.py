@@ -8,8 +8,8 @@ from flwr.common import NDArrays, Scalar
 from flwr.common import Context
 import os
 from fedper.mobile_model import MobileNetModelManager 
-import logging
-log = logging.getLogger(__name__)
+from flwr.common.logger import log
+from logging import INFO
 # def set_parameters(net, parameters: List[np.ndarray]):
 #     params_dict = zip(net.state_dict().keys(), parameters)
 #     state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict})
@@ -71,14 +71,13 @@ class BaseClient(NumPyClient):
     
     def fit(self, parameters, config) -> List[np.ndarray]:
         """Train the network and return the updated parameters."""
-        log.info(f"[Client {self.partition_id}] fit, config: {config}")
+        log(INFO, f"[Client {self.partition_id}] fit, config: {config}")
         self.set_parameters(parameters)
         train_results = self.perform_train()
         
-        log.info(f"Training Results ------- Client {self.partition_id}")
-        log.info(train_results)
+        log(INFO, "Training Results ------- Client {self.partition_id}")
         
-        return self.get_parameters(config), self.model_manager.train_dataset_size(), {}
+        return self.get_parameters(config), self.model_manager.train_dataset_size(), {"layers" : self.model_manager.model.get_global_net_children_name()}
     
     def evaluate(self, parameters: NDArrays, config: Dict[str, Scalar]) -> Tuple[float, int, dict]:
         """Evaluate the network and return the loss and accuracy."""
@@ -110,7 +109,6 @@ class PersonalizedClient(BaseClient):
             for k in self.model_manager.model.state_dict().keys()
             if k.startswith("_global_net")
         ]
-        
         # Set global model
         params_dict = zip(global_model_keys, parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})

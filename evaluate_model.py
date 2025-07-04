@@ -51,7 +51,7 @@ def main() -> None:
         train_targets.extend(batch['label'].cpu().numpy())
     train_targets = np.array(train_targets)
     unique_test, counts_test = np.unique(train_targets, return_counts=True)
-    print("Support (number of samples) for each class in the test split (from test_loader):")
+    print("Support (number of samples) for each class in the trainq split (from trainloader):")
     for cls, count in zip(unique_test, counts_test):
         print(f"Class {cls}: {count} samples")
    
@@ -61,12 +61,10 @@ def main() -> None:
         load_global_weights(f'{log_directory}/server_state/parameters_round_{cfg.num_rounds}.pkl', mobile_net_manager)
     else: # It means the model is fully localised
         mobile_net_manager.client_save_path = None
-        mobile_net_manager.model._local_net = torch.nn.Sequential(*(list(mobile_net_manager.model.global_net.children())[:-1]))
-        mobile_net_manager.model._global_net = torch.nn.Identity()
-        print(mobile_net_manager.model)
+        for _ in range(cfg.model.personalisation_level):
+            mobile_net_manager.model.personalise_last_module()
         state_dict = torch.load(f'{log_directory}/client_states/local_net_{client_id}.pth')
-        state_dict_cleaned = {k[11:]: state_dict[k] for k in state_dict.keys()}
-        mobile_net_manager.model.load_state_dict(state_dict_cleaned)
+        mobile_net_manager.model.load_state_dict(state_dict)
         
     res_dict = mobile_net_manager.test(full_report=True)
 

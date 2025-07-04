@@ -13,9 +13,6 @@ from omegaconf import DictConfig
 from torch import Tensor
 from torch import nn as nn
 
-import logging
-log = logging.getLogger(__name__)
-
 
 class ModelSplit(ABC, nn.Module):
     """Abstract class for splitting a model into global_net and local_net."""
@@ -73,6 +70,10 @@ class ModelSplit(ABC, nn.Module):
             state_dict: dictionary of the state to set the model local_net to.
         """
         self.local_net.load_state_dict(state_dict, strict=True)
+        
+    def get_global_net_children_name(self) -> List[str]:
+        children = list(self.global_net.named_children())
+        return list(map(lambda x: x[0], children))
 
     def get_parameters(self) -> List[np.ndarray]:
         """Get global_net parameters 
@@ -152,23 +153,6 @@ class ModelManager(ABC):
         self.client_id = client_id
         self.config = config
         self._model = model_split_class(self._create_model())
-        
-    def _get_eig_vals(self, feats):
-        # center features
-        feats = feats - torch.mean(feats, dim=0)
-        avg_cov_feat = None
-        for idx in range(feats.shape[0]):
-            # build feature cov matrix
-            cov_feat = torch.mm(feats[idx].unsqueeze(1), feats[idx].unsqueeze(1).t())
-            # average cov rep
-            if avg_cov_feat is None:
-                avg_cov_feat = cov_feat
-            else:
-                avg_cov_feat += cov_feat
-        avg_cov_feat /= feats.shape[0]
-
-        _, eig_vals, _ = torch.linalg.svd(avg_cov_feat) # for symmetric matrix, eig_vals == singular values
-        return eig_vals.numpy()
     
 
     @abstractmethod

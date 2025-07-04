@@ -13,7 +13,7 @@ from omegaconf import DictConfig
 
 from fedper.client import PersonalizedClient, BaseClient
 from flwr.server import ServerConfig, ServerAppComponents
-from fedper.server import FedAvgWithModelSaving, weighted_average
+from fedper.server import PartialLayerFedAvg, weighted_average
 
 from fedper.mobile_model import MobileNetModelManager
 import logging
@@ -41,7 +41,7 @@ def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], Serv
         """
 
         # Create FedAvg strategy
-        strategy = FedAvgWithModelSaving(
+        strategy = PartialLayerFedAvg(
             save_path=server_path,
             on_fit_config_fn=fit_config,
             fraction_fit=cfg.server_config.fraction_fit,
@@ -95,10 +95,6 @@ def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset)
         trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
         mobile_net_manager = MobileNetModelManager(partition_id, cfg, trainloader, valloader, client_local_net_model_path)
         return PersonalizedClient(partition_id, mobile_net_manager, cfg).to_client()
-        # if cfg.training_type == "base":
-        #     return BaseClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, log).to_client()
-        # elif cfg.training_type == "personalized":
-        #     print('[Client] Personalized Client created')
-        #     return PersonalizedClient(partition_id, net, trainloader, valloader, cfg.client_config.num_epochs, client_state_path, log).to_client()
+    
     return client_fn    
 
