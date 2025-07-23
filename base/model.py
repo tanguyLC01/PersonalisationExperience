@@ -1,21 +1,25 @@
-import torch
 import torch.nn as nn
 from typing import Tuple
-from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import Any, Dict, List, Tuple, Type, Union
 import numpy as np
-from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Any, Dict, List, Tuple, Type, Union
+from typing import Any, Dict, List, Tuple, Type, Union, Optional
 
 from omegaconf import DictConfig
 from torch import Tensor
 from torch import nn as nn
+from torch.utils.data import DataLoader
+import torch
+from flwr.common import log
+from logging import INFO
+from sklearn.metrics import classification_report
 
 
-class ModelSplit(ABC, nn.Module):
-    """Abstract class for splitting a model into global_net and local_net."""
+
+
+class ModelSplit(nn.Module):
+    """Class for splitting a model into global_net and local_net."""
 
     def __init__(
         self,
@@ -30,7 +34,7 @@ class ModelSplit(ABC, nn.Module):
 
         self._global_net, self._local_net = self._get_model_parts(model)
 
-    @abstractmethod
+
     def _get_model_parts(self, model: nn.Module) -> Tuple[nn.Module, nn.Module]:
         """Return the global_net and local_net of the model.
 
@@ -42,6 +46,7 @@ class ModelSplit(ABC, nn.Module):
             Tuple where the first element is the global_net of the model
             and the second is the local_net.
         """
+        return model.global_net, model.local_net
 
     @property
     def global_net(self) -> nn.Module:
@@ -131,14 +136,17 @@ class ModelSplit(ABC, nn.Module):
         return self.local_net(x)
     
 
-class ModelManager(ABC):
+class ModelManager:
     """Manager for models with global_net/local_net split."""
 
     def __init__(
         self,
         client_id: int,
         config: DictConfig,
-        model_split_class: Type[Any],  # ModelSplit
+        trainloader: DataLoader,
+        testloader: DataLoader,
+        model_class:  Type[nn.Module],
+        client_save_path: Optional[str] = "",
     ):
         """Initialize the attributes of the model manager.
 
@@ -149,20 +157,24 @@ class ModelManager(ABC):
                 (concrete implementation of ModelSplit).
         """
         super().__init__()
-
+        self.trainloader = trainloader
+        self.testloader = testloader
+        self.client_save_path = client_save_path
+        log(INFO, f'Client save path : {self.client_save_path}')
         self.client_id = client_id
         self.config = config
-        self._model = model_split_class(self._create_model())
-    
+        self.device = self.config.device
+        self._model = ModelSplit(self._create_model(model_class))
 
-    @abstractmethod
-    def _create_model(self) -> nn.Module:
+    def _create_model(self, model_class) -> nn.Module:
         """Return model to be splitted into local_net and global_net."""
+        return model_class(self.config.model).to(self.device)
 
-    @abstractmethod
+
     def train(
         self,
         epochs: int = 1,
+        verbose: bool = False
     ) -> Dict[str, Union[List[Dict[str, float]], int, float]]:
         """Train the model maintained in self.model.
 
@@ -173,29 +185,98 @@ class ModelManager(ABC):
         -------
             Dict containing the train metrics.
         """
+        
+        if self.client_save_path is not None:
+            try:
+                self.model.local_net.load_state_dict(torch.load(self.client_save_path))
+            except FileNotFoundError:   
+                log(INFO, "No client state found, training from scratch.")
+                pass
+            
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=self.config.client_config.learning_rate)
+        correct, total = 0, 0
+        loss: torch.Tensor = 0.0
+        self.model.train()
+        for _ in range(epochs):
+            for batch in self.trainloader:
+                optimizer.zero_grad()
+                images, labels = batch['img'], batch['label']
+                outputs = self.model(images.to(self.device))
+                labels = labels.to(self.device)
+                loss = criterion(outputs, labels)
+                loss.backward()
+                optimizer.step()
+                total += labels.size(0)
+                correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
+            if verbose and _ >= epochs // 10 and _ % 10 == 0:
+                log(INFO, f"Epoch {_+1}/{epochs}, Loss: {loss / len(self.trainloader):.4f}")
+                
+        # Save client state (local_net)
+        if self.client_save_path is not None:
+            torch.save(self.model.local_net.state_dict(), self.client_save_path)
 
-    @abstractmethod
+        return {"loss": loss.item(), "accuracy": correct / total}
+        
+
     def test(
-        self,
-    ) -> Dict[str, float]:
+        self, 
+        full_report: bool = False
+    ) -> Dict[str, Any]:
         """Test the model maintained in self.model.
 
         Returns
         -------
             Dict containing the test metrics.
         """
+        # Load client state (local_net)
+        if self.client_save_path is not None:
+            self.model.local_net.load_state_dict(torch.load(self.client_save_path))
+        
+        self.model.eval()
+        criterion = torch.nn.CrossEntropyLoss()
+        correct, total, loss = 0, 0, 0.0
+        if full_report:
+            all_preds = []
+            all_targets = []
+        with torch.no_grad():
+            for batch in self.testloader:
+                images, labels = batch['img'], batch['label']
+                outputs = self.model(images.to(self.device))
+                labels = labels.to(self.device)
+                predicted = torch.max(outputs.data, 1)[1]
+                loss += criterion(outputs, labels).item()
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+                if full_report:
+                    all_preds.extend(predicted.cpu().numpy())
+                    all_targets.extend(labels.cpu().numpy())
+                    
+        final_dict = {
+            "loss": loss / len(self.testloader.dataset),
+            "accuracy": correct / total,
+        }
+        
+        if full_report:    
+            final_dict['report'] = classification_report(all_targets, all_preds, output_dict=True, zero_division=0)
+            
+        print("Test Accuracy: {:.4f}".format(correct / total))
 
-    @abstractmethod
+        return final_dict
+
     def train_dataset_size(self) -> int:
         """Return train data set size."""
+        return len(self.trainloader)
 
-    @abstractmethod
     def test_dataset_size(self) -> int:
         """Return test data set size."""
+        return len(self.testloader)
 
-    @abstractmethod
     def total_dataset_size(self) -> int:
         """Return total data set size."""
+        return len(self.trainloader) + len(self.testloader)
+    
 
     @property
     def model(self) -> nn.Module:

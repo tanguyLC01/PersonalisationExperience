@@ -1,25 +1,21 @@
-from flwr.client import ClientApp
 from flwr.common import Context
-
+from torch import nn
 from flwr.simulation import run_simulation
 from flwr.server import ServerAppComponents
-from logging import Logger
-import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import transforms 
 from flwr_datasets import FederatedDataset
 from typing import Callable, Tuple
 from omegaconf import DictConfig
-
-from fedper.client import PersonalizedClient, BaseClient
+import importlib
 from flwr.server import ServerConfig, ServerAppComponents
-from fedper.server import PartialLayerFedAvg, weighted_average
+from base.server import PartialLayerFedAvg, weighted_average
 
-from fedper.mobile_model import MobileNetModelManager
-import logging
+from base.client import BaseClient
+from base.model import ModelManager
+from typing import Type
 
-log = logging.getLogger(__name__)
-import os
+
 
 def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], ServerAppComponents]:
     
@@ -87,14 +83,14 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
     
 
 
-def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset) -> Callable[[Context], BaseClient]:
+def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset, model_manager: Type[ModelManager], model_module: Type[nn.Module], client_class: Type[BaseClient]) -> Callable[[Context], BaseClient]:
 
     def client_fn(context: Context) -> BaseClient:
         partition_id = context.node_config['partition-id']
         client_local_net_model_path = f"{client_save_path}/local_net_{partition_id}.pth"
         trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
-        mobile_net_manager = MobileNetModelManager(partition_id, cfg, trainloader, valloader, client_local_net_model_path)
-        return PersonalizedClient(partition_id, mobile_net_manager, cfg).to_client()
+        mobile_net_manager = model_manager(partition_id, cfg, trainloader, valloader, model_class=model_module, client_save_path=client_local_net_model_path)
+        return client_class(partition_id, mobile_net_manager, cfg).to_client()
     
     return client_fn    
 

@@ -7,11 +7,11 @@ import os
 import hydra
 import logging
 from omegaconf import DictConfig
-
+import importlib
 from flwr_datasets.partitioner import DirichletPartitioner, IidPartitioner
-from fedper.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
+from base.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
 from flwr.server import ServerApp
-from fedper.utils import get_server_fn, get_client_fn
+from base.utils import get_server_fn, get_client_fn
 import matplotlib.pyplot as plt
 from flwr_datasets.visualization import plot_label_distributions
 
@@ -76,9 +76,17 @@ def main(cfg: DictConfig) -> None:
 
     
     # Create a new client
-    client_fn = get_client_fn(cfg, client_save_path, fds)
+    model_name = ''.join(word.capitalize() for word in cfg.model.model_class_name.split('_')) # If a model file is mobile_net, the model name is MobileNet
+    model_module = getattr(importlib.import_module(f'nets.{cfg.model.model_class_name}'), model_name)
+    try:
+        model_manager = getattr(importlib.import_module(f'{cfg.algorithm}.model'), f'ModelManager{cfg.algorithm.capitalize()}')  
+    except ModuleNotFoundError:
+        model_manager = getattr(importlib.import_module(f'base.model'), 'ModelManager')  
+    client_class_name = getattr(importlib.import_module(f'base.client'), cfg.client_config.client_class_name)
+    client_fn = get_client_fn(cfg, client_save_path, fds, model_manager, model_module, client_class_name)
     client = ClientApp(client_fn)
     print(client)
+    
     # Create a new server
     server_fn = get_server_fn(cfg, server_save_path)
     server = ServerApp(server_fn=server_fn)

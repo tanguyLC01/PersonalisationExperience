@@ -21,7 +21,6 @@ from logging import WARNING, INFO
 from typing import Union, Optional
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
-from sympy import I
 
 
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
@@ -65,7 +64,6 @@ class PartialLayerFedAvg(FedAvg):
             log(WARNING, "FAILURES")
             return None, {}
           
-             
         layer_dict = defaultdict(list)
         client_sizes = {}
         
@@ -87,18 +85,6 @@ class PartialLayerFedAvg(FedAvg):
             layer_dict[i] = avg
             
         self.latest_aggregated = layer_dict
-        # Collect all global_net weights and number of examples
-        # weights = [parameters_to_ndarrays(fit_res.parameters) for _, fit_res in results]
-        # num_examples = [fit_res.num_examples for _, fit_res in results]
-
-        # aggregated = []
-        # for params in zip(*weights):
-        #     weighted_sum = sum(w * n for w, n in zip(params, num_examples))
-        #     total = sum(num_examples)
-        #     aggregated.append(weighted_sum / total)
-
-        #self.latest_aggregated = aggregated
-         # Aggregate custom metrics if aggregation fn was provided
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
@@ -113,31 +99,6 @@ class PartialLayerFedAvg(FedAvg):
         params = ndarrays_to_parameters(self.latest_aggregated.values())
         return params, metrics_aggregated
     
-    # def configure_fit(self, server_round: int, parameters: Parameters, client_manager: ClientManager
-    # ) -> list[tuple[ClientProxy, FitIns]]:
-    #     config = {}
-    #     if self.on_fit_config_fn is not None:
-    #         # Custom fit config function provided
-    #         config = self.on_fit_config_fn(server_round)
-            
-    #     sample_size, min_num_clients = self.num_fit_clients(
-    #         client_manager.num_available()
-    #     )
-        
-        
-        # instructions = []
-        # for client  in client_manager.sample(num_clients=sample_size, min_num_clients=min_num_clients):
-            
-        #     if self.latest_aggregated is not None: # We already have done a round, we know which layers each client sents
-        #         layers_to_send = self.layers_per_client[client.cid]
-        #         tensors = [self.latest_aggregated[name] for name in layers_to_send]
-        #         params = Parameters(tensors=[t.tolist() for t in tensors], tensor_type="numpy")
-        #         config['layers'] =  layers_to_send
-        #     else:
-        #         params = parameters
-        #     instructions.append((client, FitIns(parameters=params, config=config)))
-
-        # return instructions
     
     def evaluate(self, server_round: int, parameters: List[np.ndarray]) -> Tuple[float, int, Dict[str, float]]:
         """Evaluate the global model and save it."""   

@@ -3,11 +3,11 @@ import pickle
 import os
 from typing import Dict, Any
 from fedper.mobile_model import MobileNetModelManager
-from fedper.model import ModelManager
-from fedper.partitioner import VariablePathologicalPartitioner
+from PersonalisationExperience.base.model import ModelManager
+from PersonalisationExperience.base.partitioner import VariablePathologicalPartitioner
 import argparse
 from omegaconf import OmegaConf
-from fedper.utils import load_datasets
+from PersonalisationExperience.base.utils import load_datasets
 from flwr_datasets import FederatedDataset
 import json
 import numpy as np

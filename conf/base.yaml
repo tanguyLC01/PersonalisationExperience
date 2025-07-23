@@ -1,15 +1,19 @@
-num_clients: 3
-num_rounds: 25
+num_clients: 100
+num_rounds: 100
 seed: 42
-session_name: more_local_epochs
+session_name: test_fedper
+algorithm: 'fedper'
 
 client_config:
+  client_class_name: 'PersonalizedClient'
   num_epochs: 8
-  batch_size: 32
+  batch_size: 10
   learning_rate: 0.01
   optimiser: "sgd"
   num_cpus: 10
   num_gpus: 1
+  local_body_epoch: 1
+  local_head_epoch: 10
 
 device: 'cuda'
   
@@ -23,15 +27,27 @@ dataset:
     # alpha:  0.1
     # alpha_rich: 2
     # alpha_poor: 0.6
-    num_classes_per_partition: [9, 3, 3]  # Example for three partitions
+    num_classes_per_partition: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+
 model:
+  model_class_name: 'cnn_net'
   num_classes: 10
-  personalisation_level: [2, 2, 2]
+  personalisation_level: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
   in_channels: 3
 
 server_config:
-  fraction_fit: 1.0
-  fraction_evaluate: 1.0
+  fraction_fit: 0.1
+  fraction_evaluate: 1
   min_fit_clients: 2
   min_evaluate_clients: 2
   min_available_clients: 2
