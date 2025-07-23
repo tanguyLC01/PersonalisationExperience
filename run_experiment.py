@@ -2,12 +2,12 @@ import itertools
 import subprocess
 
 # Define valid levels (0–14)
-levels = list(range(15))
+levels = list(range(5))
 
 # Generate combinations for 3 clients
 combinations = [
     combo for combo in itertools.product(levels, repeat=3)
-    if not (all(x == 0 for x in combo) or all(x == 14 for x in combo))
+    if not (all(x == 0 for x in combo) or combo == (0, 0, 1))
 ]
 
 print(f"Running {len(combinations)} combinations...")

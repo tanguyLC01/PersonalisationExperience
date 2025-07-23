@@ -11,13 +11,11 @@ import logging
 from omegaconf import DictConfig
 import torch
 import torch.nn as nn
-from flwr_datasets.partitioner import DirichletPartitioner, IidPartitioner
+from flwr_datasets.partitioner import DirichletPartitioner
 from fedper.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
-from flwr.server import ServerApp
 from fedper.utils import load_datasets
-from fedper.mobile_model import MobileNet, MobileNetModelManager
+from fedper.mobile_model import MobileNetModelManager
 import matplotlib.pyplot as plt
-from fedper.client import BaseClient
 from flwr.common.logger import log
 from logging import INFO
 
@@ -60,8 +58,6 @@ def main(cfg: DictConfig) -> None:
         log(INFO, f"------------------ Training Client {client_id} ------------------")
         trainloader, valloader, _  = load_datasets(client_id, fds, cfg)
         model_manager = MobileNetModelManager(client_id, cfg, trainloader, valloader, f'{client_save_path}/local_net_{client_id}.pth')
-        for _ in range(cfg.model.personalisation_level[client_id]):
-            model_manager.model.personalise_last_module()
         
         model = model_manager.model
 

@@ -75,9 +75,10 @@ class BaseClient(NumPyClient):
         self.set_parameters(parameters)
         train_results = self.perform_train()
         
-        log(INFO, "Training Results ------- Client {self.partition_id}")
-        
-        return self.get_parameters(config), self.model_manager.train_dataset_size(), {"layers" : self.model_manager.model.get_global_net_children_name()}
+        log(INFO, f"Training Results ------- Client {self.partition_id}")
+        log(INFO, f'{train_results}')
+
+        return self.get_parameters(config), self.model_manager.train_dataset_size(), {}
     
     def evaluate(self, parameters: NDArrays, config: Dict[str, Scalar]) -> Tuple[float, int, dict]:
         """Evaluate the network and return the loss and accuracy."""

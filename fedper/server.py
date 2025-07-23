@@ -21,6 +21,7 @@ from logging import WARNING, INFO
 from typing import Union, Optional
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
+from sympy import I
 
 
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
@@ -40,7 +41,6 @@ class PartialLayerFedAvg(FedAvg):
         self.global_model_path = save_path
         os.makedirs(self.global_model_path, exist_ok=True)
         self.latest_aggregated = None
-        self.layers_per_client = defaultdict(list)
 
     def _save_global_model(self, server_round: int, parameters):
         ndarrays = flwr.common.parameters_to_ndarrays(parameters)
@@ -55,29 +55,49 @@ class PartialLayerFedAvg(FedAvg):
         results: list[tuple[ClientProxy, FitRes]],
         failures: list[Union[tuple[ClientProxy, FitRes], BaseException]],
     ) -> tuple[Optional[Parameters], dict[str, Scalar]]:
+        log(INFO, "Starting Aggregation fit") 
         if not results:
+            log(WARNING, "NO RESULTS")
             return None, {}
+        
         # Do not aggregate if there are failures and failures are not accepted
         if not self.accept_failures and failures:
+            log(WARNING, "FAILURES")
             return None, {}
-        log(INFO, "Starting Aggregation fit")        
+          
+             
         layer_dict = defaultdict(list)
         client_sizes = {}
+        
 
         for client, fit_res in results:
-            layers = fit_res.metrics["layers"]
-            self.layers_per_client[client.cid] = layers
             client_sizes[client.cid] = fit_res.num_examples
+            # The layers are ordered the same way in each client and we cut the model in half. At the moment, there can't be a personalised layer between two global layers.
+            parameters = parameters_to_ndarrays(fit_res.parameters)
+            for i, weights in enumerate(parameters):
+                if not i in layer_dict:
+                    layer_dict[i] = []
+                layer_dict[i].append((np.array(weights), fit_res.num_examples))
 
-            for name, weight in zip(layers, fit_res.parameters.tensors):
-                layer_dict[name].append((np.array(weight), fit_res.num_examples))
 
         # Aggregate each layer independently
-        for name, weighted_layers in layer_dict.items():
+        for i, weighted_layers in layer_dict.items():
             total = sum(size for _, size in weighted_layers)
             avg = sum(weight * size for weight, size in weighted_layers) / total
-            self.latest_aggregated[name] = avg
+            layer_dict[i] = avg
+            
+        self.latest_aggregated = layer_dict
+        # Collect all global_net weights and number of examples
+        # weights = [parameters_to_ndarrays(fit_res.parameters) for _, fit_res in results]
+        # num_examples = [fit_res.num_examples for _, fit_res in results]
 
+        # aggregated = []
+        # for params in zip(*weights):
+        #     weighted_sum = sum(w * n for w, n in zip(params, num_examples))
+        #     total = sum(num_examples)
+        #     aggregated.append(weighted_sum / total)
+
+        #self.latest_aggregated = aggregated
          # Aggregate custom metrics if aggregation fn was provided
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
@@ -89,6 +109,7 @@ class PartialLayerFedAvg(FedAvg):
         # No need to return Parameters as they are different per client. 
         # In Flower, the returned parameter from aggregate fit will be seen as an argument in configure_fit and configure_evaluate
         # return Parameters(tensors=[], tensor_type=""), metrics_aggregated
+        log(INFO, f'Number of layers updated : {len(self.latest_aggregated)}')
         params = ndarrays_to_parameters(self.latest_aggregated.values())
         return params, metrics_aggregated
     
@@ -119,7 +140,7 @@ class PartialLayerFedAvg(FedAvg):
         # return instructions
     
     def evaluate(self, server_round: int, parameters: List[np.ndarray]) -> Tuple[float, int, Dict[str, float]]:
-        """Evaluate the global model and save it."""    
+        """Evaluate the global model and save it."""   
         # Save the global model before evaluation
         self._save_global_model(server_round, parameters)
         

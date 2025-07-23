@@ -1,10 +1,10 @@
 num_clients: 3
-num_rounds: 50
+num_rounds: 25
 seed: 42
-session_name: test_personalisation
+session_name: more_local_epochs
 
 client_config:
-  num_epochs: 4
+  num_epochs: 8
   batch_size: 32
   learning_rate: 0.01
   optimiser: "sgd"
@@ -16,7 +16,7 @@ device: 'cuda'
 dataset:
   name : "uoft-cs/cifar10"
   num_classes: 10
-  seed: 42
+  seed: ${seed}
   num_clients: ${num_clients}
   partitioner:
     name: "variable_pathological"
@@ -26,12 +26,12 @@ dataset:
     num_classes_per_partition: [9, 3, 3]  # Example for three partitions
 model:
   num_classes: 10
-  personalisation_level: [0, 0, 1]
+  personalisation_level: [2, 2, 2]
   in_channels: 3
 
 server_config:
   fraction_fit: 1.0
-  fraction_evaluate: 0.5
+  fraction_evaluate: 1.0
   min_fit_clients: 2
   min_evaluate_clients: 2
   min_available_clients: 2

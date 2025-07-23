@@ -31,7 +31,6 @@ def main() -> None:
     
     parser.add_argument("-l", "--log_directory", type=str, help="Directory to save logs")
     parser.add_argument('-n', '--num_client', type=int, default=0, help='Client Id to evalute')
-    parser.parse_args()
     log_directory  = parser.parse_args().log_directory
     client_id = parser.parse_args().num_client
     config_file = f"{log_directory}/.hydra/config.yaml"
@@ -61,8 +60,6 @@ def main() -> None:
         load_global_weights(f'{log_directory}/server_state/parameters_round_{cfg.num_rounds}.pkl', mobile_net_manager)
     else: # It means the model is fully localised
         mobile_net_manager.client_save_path = None
-        for _ in range(cfg.model.personalisation_level):
-            mobile_net_manager.model.personalise_last_module()
         state_dict = torch.load(f'{log_directory}/client_states/local_net_{client_id}.pth')
         mobile_net_manager.model.load_state_dict(state_dict)
         
@@ -70,6 +67,7 @@ def main() -> None:
 
     # Save metrics to log file
     metrics = {
+        "loss": res_dict['loss'],
         "classification_report": res_dict['report'],
         "accuracy": res_dict['accuracy']
     }
