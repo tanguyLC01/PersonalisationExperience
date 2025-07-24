@@ -93,9 +93,9 @@ def main(cfg: DictConfig) -> None:
     if cfg.algorithm == 'fedavg-ft':
         for client_id in range(cfg.num_clients):
             context = Context(run_id=0, node_id=0, node_config={"partition-id": client_id}, state=RecordDict(), run_config={})
-            client = client(context)
-            client.model_manager._model.disable_global_net()
-            client.model_manager._model.train(epochs=cfg.client_config.finetuned_epoch)
+            client_instance = client(context)
+            client_instance.model_manager._model.disable_global_net()
+            client_instance.model_manager._model.train(epochs=cfg.client_config.finetuned_epoch)
 
     print(history)
 
