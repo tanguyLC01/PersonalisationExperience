@@ -1,49 +1,9 @@
 num_clients: 100
 num_rounds: 100
 seed: 42
-session_name: test_fedper
-algorithm: 'fedper'
-
-client_config:
-  client_class_name: 'PersonalizedClient'
-  num_epochs: 8
-  batch_size: 10
-  learning_rate: 0.01
-  optimiser: "sgd"
-  num_cpus: 10
-  num_gpus: 1
-  local_body_epoch: 1
-  local_head_epoch: 10
-
+session_name: collins_reproduction
+algorithm: fedrep
 device: 'cuda'
-  
-dataset:
-  name : "uoft-cs/cifar10"
-  num_classes: 10
-  seed: ${seed}
-  num_clients: ${num_clients}
-  partitioner:
-    name: "variable_pathological"
-    # alpha:  0.1
-    # alpha_rich: 2
-    # alpha_poor: 0.6
-    num_classes_per_partition: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
-
-model:
-  model_class_name: 'cnn_net'
-  num_classes: 10
-  personalisation_level: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-  in_channels: 3
 
 server_config:
   fraction_fit: 0.1
@@ -55,3 +15,9 @@ server_config:
 hydra:
   run:
     dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+defaults:
+  - client_config: fedrep
+  - dataset: cifar10
+  - model: cnn_net
+  

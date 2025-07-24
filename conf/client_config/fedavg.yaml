@@ -1,0 +1,8 @@
+client_class_name: 'BaseClient'
+num_epochs: 8
+batch_size: 10
+learning_rate: 0.01
+optimiser: "sgd"
+num_cpus: 10
+num_gpus: 1
+

@@ -12,8 +12,8 @@ from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 from flwr_datasets.partitioner import DirichletPartitioner
-from fedper.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
-from fedper.utils import load_datasets
+from PersonalisationExperience.base.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
+from PersonalisationExperience.base.utils import load_datasets
 from fedper.mobile_model import MobileNetModelManager
 import matplotlib.pyplot as plt
 from flwr.common.logger import log

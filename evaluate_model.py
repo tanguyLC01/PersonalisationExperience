@@ -1,16 +1,15 @@
 import torch
 import pickle
 import os
-from typing import Dict, Any
-from fedper.mobile_model import MobileNetModelManager
-from PersonalisationExperience.base.model import ModelManager
-from PersonalisationExperience.base.partitioner import VariablePathologicalPartitioner
 import argparse
 from omegaconf import OmegaConf
-from PersonalisationExperience.base.utils import load_datasets
+from base.utils import load_datasets
 from flwr_datasets import FederatedDataset
 import json
 import numpy as np
+from base.model import ModelManager
+from base.partitioner import load_partitioner
+import importlib
 
 def load_global_weights(global_weights_path: str, net_manager: ModelManager) -> None:
     with open(global_weights_path, 'rb') as f:
@@ -38,9 +37,7 @@ def main() -> None:
     
     client_local_net_model_path = f'{log_directory}/client_states/local_net_{client_id}.pth'
 
-    if cfg.dataset.partitioner.name == 'variable_pathological':
-        partitioner_train = VariablePathologicalPartitioner(cfg.num_clients, partition_by='label', num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition, seed=cfg.seed, shuffle=True)
-        partitioner_test = VariablePathologicalPartitioner(cfg.num_clients, partition_by='label', num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition, seed=cfg.seed, shuffle=True)
+    partitioner_train, partitioner_test = load_partitioner(cfg)
     
     fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={'train': partitioner_train, "test": partitioner_test})    
     trainloader, _, testloader = load_datasets(client_id, fds, cfg)
@@ -54,16 +51,22 @@ def main() -> None:
     for cls, count in zip(unique_test, counts_test):
         print(f"Class {cls}: {count} samples")
    
-    mobile_net_manager = MobileNetModelManager(client_id, cfg, trainloader, testloader, client_local_net_model_path)
+    model_name = ''.join(word.capitalize() for word in cfg.model.model_class_name.split('_')) # If a model file is mobile_net, the model name is MobileNet
+    model_module = getattr(importlib.import_module(f'nets.{cfg.model.model_class_name}'), model_name)
+    try:
+        model_manager = getattr(importlib.import_module(f'{cfg.algorithm}.model'), f'ModelManager{cfg.algorithm.capitalize()}')  
+    except ModuleNotFoundError:
+        model_manager = getattr(importlib.import_module(f'base.model'), 'ModelManager')  
+    net_manager = model_manager(client_id, cfg, trainloader, testloader, model_class=model_module, client_save_path=client_local_net_model_path)
     # We set the global_parameters as there is no server for testing. The managers handles the local net part on its own.
     if os.path.exists(f'{log_directory}/server_state'):
-        load_global_weights(f'{log_directory}/server_state/parameters_round_{cfg.num_rounds}.pkl', mobile_net_manager)
+        load_global_weights(f'{log_directory}/server_state/parameters_round_{cfg.num_rounds}.pkl', net_manager)
     else: # It means the model is fully localised
-        mobile_net_manager.client_save_path = None
+        net_manager.client_save_path = None
         state_dict = torch.load(f'{log_directory}/client_states/local_net_{client_id}.pth')
-        mobile_net_manager.model.load_state_dict(state_dict)
+        net_manager.model.load_state_dict(state_dict)
         
-    res_dict = mobile_net_manager.test(full_report=True)
+    res_dict = net_manager.test(full_report=True)
 
     # Save metrics to log file
     metrics = {
@@ -71,7 +74,8 @@ def main() -> None:
         "classification_report": res_dict['report'],
         "accuracy": res_dict['accuracy']
     }
-    metrics_path = f"{log_directory}/test_metrics_{client_id}.json"
+    os.makedirs(f"{log_directory}/test_metrics")
+    metrics_path = f"{log_directory}/test_metrics/test_metrics_{client_id}.json"
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=4)
     print("Per-class metrics:")

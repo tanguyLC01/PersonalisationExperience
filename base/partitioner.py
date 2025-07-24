@@ -6,6 +6,10 @@ import numpy as np
 from collections import defaultdict
 from flwr_datasets.common.typing import NDArray
 import warnings
+from flwr_datasets.partitioner import DirichletPartitioner, PathologicalPartitioner
+from omegaconf import DictConfig
+
+
 
 class DirichletSkewedPartitioner(Partitioner):
     def __init__(self, num_partitions: int, rich_clients: List[int], alpha_rich=5.0, alpha_poor=0.1, seed: Optional[int] = 42) -> None:
@@ -26,7 +30,7 @@ class DirichletSkewedPartitioner(Partitioner):
         self._seed = seed
         self._rng = np.random.default_rng(seed=self._seed)
 
-    def call(self, dataset: Dataset) -> Dict[int, Dataset]:
+    def call(self, dataset: Dataset) -> Dict[int, List[int]]:
         if self._partition_id_to_indices_determined:
             return
         
@@ -269,3 +273,108 @@ class VariablePathologicalPartitioner(Partitioner):
                     f"Alternatively use a different dataset if you can not adjust"
                     f" the any of these parameters."
                 )
+                
+
+class FedPerPartitioner(Partitioner):
+    def __init__(self, num_partitions: int, num_classes_per_partition: int, seed: Optional[int] = 42) -> None:
+        super().__init__()
+        self._num_partitions = num_partitions
+        self._partition_id_to_indices: dict[int, list[int]] = {}
+        self._partition_id_to_indices_determined = False
+        self._seed = seed
+        self.num_classes_per_partition = num_classes_per_partition
+        self._rng = np.random.default_rng(seed=self._seed)
+
+    def call(self, dataset: Dataset) -> Dict[int, List[int]]:
+        if self._partition_id_to_indices_determined:
+            return
+        
+        num_classes = len(np.unique(dataset['label']))
+        class_to_indices = {i: [] for i in range(num_classes)}
+        for idx, label in enumerate(dataset['label']):
+            class_to_indices[label].append(idx)
+            
+        # for class_id in class_to_indices:
+        #     self._rng.shuffle(class_to_indices[class_id])
+        
+        sample_number = sum([len(idxs) for idxs in class_to_indices.values()])
+        shard_per_class = int(self.num_classes_per_partition * self.num_partitions/ num_classes)
+        samples_per_user = int(sample_number / self.num_partitions)
+        
+        dict_users = defaultdict(list)
+        for label in class_to_indices.keys():
+            x = np.array(class_to_indices[label])
+            shards = np.array_split(x, shard_per_class)
+            class_to_indices[label] = [shard.tolist() for shard in shards]
+            
+        rand_set_all = list(range(num_classes)) * shard_per_class
+        self._rng.shuffle(rand_set_all)
+        rand_set_all = np.array(rand_set_all).reshape((self.num_partitions, -1))
+        
+        for cid in range(self.num_partitions):
+            rand_set_label = rand_set_all[cid]
+            rand_set = []
+            for label in rand_set_label:
+                idx = np.random.choice(len(class_to_indices[label]), replace=False)
+                rand_set.append(class_to_indices[label].pop(idx))
+            dict_users[cid] = np.concatenate(rand_set)
+
+        self._partition_id_to_indices = dict_users
+        self._partition_id_to_indices_determined = True
+        
+    @property
+    def num_partitions(self) -> int:
+        return self._num_partitions
+    
+    def load_partition(self, partition_id: int) -> Dataset:
+        """Load a specific partition by its ID."""
+        self.call(self.dataset)
+        if partition_id < 0 or partition_id >= self._num_partitions:
+            raise ValueError(f"Partition ID {partition_id} is out of bounds.")
+        return self.dataset.select(self._partition_id_to_indices[partition_id])
+    
+    
+def load_partitioner(cfg: DictConfig, ) -> Partitioner:
+    if cfg.dataset.partitioner.name == "dirichlet":
+        train_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
+        test_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
+        
+    elif cfg.dataset.partitioner.name == "dirichletskew":
+        test_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
+        train_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
+        
+    elif cfg.dataset.partitioner.name == "variable_pathological":
+        train_partitioner = VariablePathologicalPartitioner(
+            num_partitions=cfg.num_clients,
+            partition_by="label",
+            num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
+            shuffle=True,
+            seed=cfg.seed,
+        )
+        test_partitioner = VariablePathologicalPartitioner(
+            num_partitions=cfg.num_clients,
+            partition_by="label",
+            num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
+            shuffle=True,
+            seed=cfg.seed,
+        )
+    elif cfg.dataset.partitioner.name == "pathological":
+        train_partitioner = PathologicalPartitioner(num_partitions=cfg.num_clients, 
+                                              partition_by='label', 
+                                              num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
+                                              class_assignment_mode='random',
+                                              seed=cfg.seed)
+        test_partitioner = PathologicalPartitioner(num_partitions=cfg.num_clients, 
+                                              partition_by='label', 
+                                              num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
+                                              class_assignment_mode='random',
+                                              seed=cfg.seed)
+    elif cfg.dataset.partitioner.name == "fedrep":
+        train_partitioner = FedPerPartitioner(num_partitions=cfg.num_clients, 
+                                              num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
+                                              seed=cfg.seed)
+        test_partitioner = FedPerPartitioner(num_partitions=cfg.num_clients, 
+                                              num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
+                                              seed=cfg.seed)
+        
+    return train_partitioner, test_partitioner

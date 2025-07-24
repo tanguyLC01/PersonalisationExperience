@@ -1,14 +1,10 @@
 import torch.nn as nn
-from typing import Tuple
 from collections import OrderedDict
-from typing import Any, Dict, List, Tuple, Type, Union
 import numpy as np
-from collections import OrderedDict
 from typing import Any, Dict, List, Tuple, Type, Union, Optional
 
 from omegaconf import DictConfig
 from torch import Tensor
-from torch import nn as nn
 from torch.utils.data import DataLoader
 import torch
 from flwr.common import log
@@ -165,6 +161,9 @@ class ModelManager:
         self.config = config
         self.device = self.config.device
         self._model = ModelSplit(self._create_model(model_class))
+        
+        for _ in range(config.model.personalisation_level[client_id]):
+            self._model.personalise_last_module()
 
     def _create_model(self, model_class) -> nn.Module:
         """Return model to be splitted into local_net and global_net."""
@@ -232,7 +231,11 @@ class ModelManager:
         """
         # Load client state (local_net)
         if self.client_save_path is not None:
-            self.model.local_net.load_state_dict(torch.load(self.client_save_path))
+            try:
+                self.model.local_net.load_state_dict(torch.load(self.client_save_path))
+            except FileNotFoundError:   
+                log(INFO, "No client state found, evaluating from scratch")
+                pass
         
         self.model.eval()
         criterion = torch.nn.CrossEntropyLoss()

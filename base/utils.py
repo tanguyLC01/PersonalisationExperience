@@ -88,9 +88,9 @@ def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset,
     def client_fn(context: Context) -> BaseClient:
         partition_id = context.node_config['partition-id']
         client_local_net_model_path = f"{client_save_path}/local_net_{partition_id}.pth"
-        trainloader, valloader, _ = load_datasets(partition_id, fds, cfg)
-        mobile_net_manager = model_manager(partition_id, cfg, trainloader, valloader, model_class=model_module, client_save_path=client_local_net_model_path)
+        trainloader, _, testloader = load_datasets(partition_id, fds, cfg)
+        mobile_net_manager = model_manager(partition_id, cfg, trainloader, testloader, model_class=model_module, client_save_path=client_local_net_model_path)
         return client_class(partition_id, mobile_net_manager, cfg).to_client()
     
-    return client_fn    
+    return client_fn   
 

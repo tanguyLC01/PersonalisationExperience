@@ -8,12 +8,13 @@ import hydra
 import logging
 from omegaconf import DictConfig
 import importlib
-from flwr_datasets.partitioner import DirichletPartitioner, IidPartitioner
-from base.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
 from flwr.server import ServerApp
 from base.utils import get_server_fn, get_client_fn
 import matplotlib.pyplot as plt
 from flwr_datasets.visualization import plot_label_distributions
+from base.partitioner import load_partitioner
+from flwr.common import Context
+from flwr.common import RecordDict
 
 #partitioner = DirichletPartitioner(num_partitions=NUM_CLIENTS, partition_by="label",
 #                                   alpha=0.1, min_partition_size=10)
@@ -34,25 +35,11 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(client_save_path)
     os.makedirs(server_save_path)
     
-    if cfg.dataset.partitioner.name == "dirichlet":
-        partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
-    elif cfg.dataset.partitioner.name == "dirichletskew":
-        partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
-    elif cfg.dataset.partitioner.name == "variable_pathological":
-        partitioner = VariablePathologicalPartitioner(
-            num_partitions=cfg.num_clients,
-            partition_by="label",
-            num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
-            shuffle=True,
-            seed=cfg.seed,
-        )
-    fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": partitioner, "test":  VariablePathologicalPartitioner(
-            num_partitions=cfg.num_clients,
-            partition_by="label",
-            num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
-            shuffle=True,
-            seed=cfg.seed,
-        )})
+    # --------------------- Choose the right Partitioner (Train and test will have the same) ---------------------
+    train_partitioner, test_partitioner = load_partitioner(cfg)
+   
+        
+    fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": train_partitioner, "test":  test_partitioner})
     
 
     fig_train, _, _ = plot_label_distributions(partitioner=fds.partitioners["train"],
@@ -102,6 +89,14 @@ def main(cfg: DictConfig) -> None:
             }
     )
     
+    
+    if cfg.algorithm == 'fedavg-ft':
+        for client_id in range(cfg.num_clients):
+            context = Context(run_id=0, node_id=0, node_config={"partition-id": client_id}, state=RecordDict(), run_config={})
+            client = client(context)
+            client.model_manager._model.disable_global_net()
+            client.model_manager._model.train(epochs=cfg.client_config.finetuned_epoch)
+
     print(history)
 
 if __name__ == "__main__":
