@@ -74,7 +74,7 @@ def main() -> None:
         "classification_report": res_dict['report'],
         "accuracy": res_dict['accuracy']
     }
-    os.makedirs(f"{log_directory}/test_metrics")
+    os.makedirs(f"{log_directory}/test_metrics", exist_ok=True)
     metrics_path = f"{log_directory}/test_metrics/test_metrics_{client_id}.json"
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=4)

@@ -193,8 +193,14 @@ class ModelManager:
                 pass
             
         criterion = torch.nn.CrossEntropyLoss()
+        weights = [v for k, v in self._model.named_parameters() if "weight" in k]
+        biases = [v for k, v in self._model.named_parameters() if "bias" in k]
+        
         optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=self.config.client_config.learning_rate)
+             [
+                {"params": weights, "weight_decay": self.config.client_config.weight_decay},
+                {"params": biases, "weight_decay": 0.0},
+            ], lr=self.config.client_config.learning_rate, momentum=self.config.client_config.momentum)
         correct, total = 0, 0
         loss: torch.Tensor = 0.0
         self.model.train()
@@ -222,7 +228,7 @@ class ModelManager:
     def test(
         self, 
         full_report: bool = False
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any]: 
         """Test the model maintained in self.model.
 
         Returns

@@ -17,7 +17,10 @@ class BaseClient(NumPyClient):
     def __init__(self, partition_id: int, model_manager: type[ModelManager], config: Dict[str, Scalar]) -> None:
         self.partition_id = partition_id
         self.model_manager = model_manager
-        self.epochs = config.client_config.num_epochs
+        if "num_epochs" in config.client_config:
+            self.epochs = config.client_config.num_epochs
+        else:
+            self.epochs = None
         
     def get_parameters(self, config: Dict[str, Scalar]) -> List[np.ndarray]:
         """Return the current parameters of the global network."""
@@ -52,7 +55,10 @@ class BaseClient(NumPyClient):
         -------
             Dict with the train metrics.
         """
-        epochs = self.epochs
+        if self.epochs:
+            epochs = self.epochs
+        else:
+            epochs = 0
 
         self.model_manager.model.enable_global_net()
         self.model_manager.model.enable_local_net()

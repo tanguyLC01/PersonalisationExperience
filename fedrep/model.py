@@ -35,17 +35,23 @@ class ModelManagerFedrep(ModelManager):
                 pass
             
         criterion = nn.CrossEntropyLoss()
+        weights = [v for k, v in self._model.named_parameters() if "weight" in k]
+        biases = [v for k, v in self._model.named_parameters() if "bias" in k]
+        
         optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=self.config.client_config.learning_rate)
+             [
+                {"params": weights, "weight_decay": self.config.client_config.weight_decay},
+                {"params": biases, "weight_decay": 0.0},
+            ], lr=self.config.client_config.learning_rate, momentum=self.config.client_config.momentum)
         correct, total = 0, 0
         loss: torch.Tensor = 0.0
-        self.model.train()
-        self.model.disable_global_net()
+        self._model.train()
+        self._model.disable_global_net()
         for _ in range(self.local_head_epochs):
             for batch in self.trainloader:
                 optimizer.zero_grad()
                 images, labels = batch['img'], batch['label']
-                outputs = self.model(images.to(self.device))
+                outputs = self._model(images.to(self.device))
                 labels = labels.to(self.device)
                 loss = criterion(outputs, labels)
                 loss.backward()
@@ -55,13 +61,13 @@ class ModelManagerFedrep(ModelManager):
             if verbose and _ >= epochs // 10 and _ % 10 == 0:
                 log(INFO, f"Local Head Epoch {_+1}/{epochs}, Loss: {loss / len(self.trainloader):.4f}")
                 
-        self.model.enable_global_net()
-        self.model.disable_local_net()
+        self._model.enable_global_net()
+        self._model.disable_local_net()
         for _ in range(self.local_body_epochs):
             for batch in self.trainloader:
                 optimizer.zero_grad()
                 images, labels = batch['img'], batch['label']
-                outputs = self.model(images.to(self.device))
+                outputs = self._model(images.to(self.device))
                 labels = labels.to(self.device)
                 loss = criterion(outputs, labels)
                 loss.backward()

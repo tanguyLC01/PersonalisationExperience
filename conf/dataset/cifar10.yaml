@@ -1,6 +1,6 @@
 name : "uoft-cs/cifar10"
 num_classes: 10
-seed: ${seed}
+seed: ${seed}$
 num_clients: ${num_clients}
 defaults:
   - partitioner: fedrep

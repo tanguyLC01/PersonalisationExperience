@@ -1,9 +1,9 @@
 num_clients: 100
 num_rounds: 100
 seed: 42
-session_name: collins_reproduction
-algorithm: fedrep
-device: 'cuda'
+session_name: local_epochs_influence
+algorithm: fedavg
+device: cuda
 
 server_config:
   fraction_fit: 0.1
@@ -17,7 +17,7 @@ hydra:
     dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 defaults:
-  - client_config: fedrep
+  - client_config: fedavg
   - dataset: cifar10
   - model: cnn_net
   

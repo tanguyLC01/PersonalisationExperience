@@ -7,12 +7,16 @@ class CnnNet(nn.Module):
         num_classes = model_config['num_classes']
         self.global_net = nn.Sequential(
             nn.Conv2d(3, 64, 5),
+            nn.ReLU(),
             nn.MaxPool2d(2, 2),
             nn.Conv2d(64, 64, 5),
+            nn.ReLU(),
             nn.MaxPool2d(2, 2),
             nn.Flatten(),
             nn.Linear(64 * 5 * 5, 120),
+            nn.ReLU(),
             nn.Linear(120, 64),
+            nn.ReLU(),
             nn.Linear(64, num_classes)
         )
         

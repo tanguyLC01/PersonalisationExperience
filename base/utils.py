@@ -21,12 +21,7 @@ def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], Serv
     
     
     def fit_config(server_round: int) -> dict:
-        return {
-            "batch_size": cfg.client_config.batch_size,
-            "local_epochs": cfg.client_config.num_epochs,
-            "optimizer": cfg.client_config.optimiser,  # Use sgd optimizer'
-            "learning_rate": cfg.client_config.learning_rate,  # Learning rate for the optimizer
-        }
+        return {}
     
     def server_fn(context: Context) -> ServerAppComponents:
         """Construct components that set the ServerApp behaviour.

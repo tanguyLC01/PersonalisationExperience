@@ -5,7 +5,6 @@ import random
 from flwr_datasets import FederatedDataset
 import os
 import hydra
-import logging
 from omegaconf import DictConfig
 import importlib
 from flwr.server import ServerApp
@@ -15,17 +14,19 @@ from flwr_datasets.visualization import plot_label_distributions
 from base.partitioner import load_partitioner
 from flwr.common import Context
 from flwr.common import RecordDict
+from logging import INFO
+from flwr.common import log
 
 #partitioner = DirichletPartitioner(num_partitions=NUM_CLIENTS, partition_by="label",
 #                                   alpha=0.1, min_partition_size=10)
-log = logging.getLogger(__name__)
+
 
 @hydra.main(config_path='conf', config_name="base", version_base=None)
 def main(cfg: DictConfig) -> None:
     np.random.seed(cfg.seed) 
     random.seed(cfg.seed)   
     log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    log.info(f"Saving logs to {log_save_path}")
+    log(INFO, f"Saving logs to {log_save_path}")
     client_save_path = (
             f"{log_save_path}/client_states"
         )
@@ -63,12 +64,14 @@ def main(cfg: DictConfig) -> None:
 
     
     # Create a new client
-    model_name = ''.join(word.capitalize() for word in cfg.model.model_class_name.split('_')) # If a model file is mobile_net, the model name is MobileNet
-    model_module = getattr(importlib.import_module(f'nets.{cfg.model.model_class_name}'), model_name)
+    log(INFO, f"ModelManager path : {cfg.algorithm}.model.ModelManager{cfg.algorithm.capitalize()}")
     try:
-        model_manager = getattr(importlib.import_module(f'{cfg.algorithm}.model'), f'ModelManager{cfg.algorithm.capitalize()}')  
+        model_manager = getattr(importlib.import_module(f'{cfg.algorithm}.model'), f'ModelManager{cfg.algorithm.capitalize()}')
     except ModuleNotFoundError:
         model_manager = getattr(importlib.import_module(f'base.model'), 'ModelManager')  
+    log(INFO, f"Client will use {model_manager} as model manager class")
+    model_name = ''.join(word.capitalize() for word in cfg.model.model_class_name.split('_')) # If a model file is mobile_net, the model name is MobileNet
+    model_module = getattr(importlib.import_module(f'nets.{cfg.model.model_class_name}'), model_name)
     client_class_name = getattr(importlib.import_module(f'base.client'), cfg.client_config.client_class_name)
     client_fn = get_client_fn(cfg, client_save_path, fds, model_manager, model_module, client_class_name)
     client = ClientApp(client_fn)
@@ -92,10 +95,8 @@ def main(cfg: DictConfig) -> None:
     
     if cfg.algorithm == 'fedavg-ft':
         for client_id in range(cfg.num_clients):
-            context = Context(run_id=0, node_id=0, node_config={"partition-id": client_id}, state=RecordDict(), run_config={})
-            client_instance = client(context)
-            client_instance.model_manager._model.disable_global_net()
-            client_instance.model_manager._model.train(epochs=cfg.client_config.finetuned_epoch)
+            client = client_class_name(client_id, model_manager, cfg)
+            client.model_manager.finetune_model(cfg.client_config.finetuned_epochs)
 
     print(history)
 
