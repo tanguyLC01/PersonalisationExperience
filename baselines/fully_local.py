@@ -1,5 +1,7 @@
 import sys
 import os
+
+from PersonalisationExperience.load_classname import load_client_element
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import numpy as np
@@ -12,9 +14,9 @@ from omegaconf import DictConfig
 import torch
 import torch.nn as nn
 from flwr_datasets.partitioner import DirichletPartitioner
-from PersonalisationExperience.base.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
-from PersonalisationExperience.base.utils import load_datasets
-from fedper.mobile_model import MobileNetModelManager
+from base.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
+from base.utils import load_datasets
+from base.partitioner import load_partitioner
 import matplotlib.pyplot as plt
 from flwr.common.logger import log
 from logging import INFO
@@ -32,96 +34,43 @@ def main(cfg: DictConfig) -> None:
     
     os.makedirs(client_save_path)
     
-    if cfg.dataset.partitioner.name == "dirichlet":
-        partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
-    elif cfg.dataset.partitioner.name == "dirichletskew":
-        partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
-    elif cfg.dataset.partitioner.name == "variable_pathological":
-        partitioner = VariablePathologicalPartitioner(
-            num_partitions=cfg.num_clients,
-            partition_by="label",
-            num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
-            shuffle=True,
-            seed=cfg.seed,
-        )
+    # --------------------- Choose the right Partitioner (Train and test will have the same) ---------------------
+    train_partitioner, test_partitioner = load_partitioner(cfg)
         
-    fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": partitioner, "test":  VariablePathologicalPartitioner(
-        num_partitions=cfg.num_clients,
-        partition_by="label",
-        num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
-        shuffle=True,
-        seed=cfg.seed,
-    )})
+    fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": train_partitioner, "test":  test_partitioner})
     
-    epochs = cfg.client_config.num_epochs * cfg.num_rounds
+    epochs = cfg.client_config.num_epochs * cfg.num_rounds * cfg.server_config.fraction_fit
     for client_id in range(cfg.num_clients):
         log(INFO, f"------------------ Training Client {client_id} ------------------")
-        trainloader, valloader, _  = load_datasets(client_id, fds, cfg)
-        model_manager = MobileNetModelManager(client_id, cfg, trainloader, valloader, f'{client_save_path}/local_net_{client_id}.pth')
-        
-        model = model_manager.model
+        trainloader, _, testloader  = load_datasets(client_id, fds, cfg)
+        client_classname, model_manager_class, model_module_class = load_client_element(cfg)
+        model_manager  = model_manager_class(partition_id=client_id, cfg=cfg, trainloader=trainloader, testloader=testloader, model_class=model_module_class, client_save_path=f"{client_save_path}/local_net_{client_id}.pth")
+        client = client_classname(client_id, model_manager, cfg)
+        client.model_manager.epochs = epochs
+        client.perform_train(verbose=True)
 
-        criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.SGD(
-            model.parameters(), lr=cfg.client_config.learning_rate)
-        correct, total = 0, 0
-        
-        train_losses = []  
-        val_accuracies = []
-        for _ in range(epochs): 
-            
-            model.train()
-            running_loss = 0
-            for batch in trainloader:
-                optimizer.zero_grad()
-                images, labels = batch['img'], batch['label']
-                outputs = model(images.to(cfg.device))
-                labels = labels.to(cfg.device)
-                loss = criterion(outputs, labels)
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
-            avg_train_loss = running_loss / len(trainloader)
-            train_losses.append(avg_train_loss)
-            model.eval()
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for batch in valloader:
-                    images, labels = batch['img'], batch['label']
-                    outputs = model(images.to(cfg.device))
-                    labels = labels.to(cfg.device)
-                    correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
-                    total += labels.size(0)
-            
-            val_accuracy = correct / total
-            val_accuracies.append(val_accuracy)
-            if _ % 10 == 0 and _ >= 10:
-                log(INFO, f"Epoch {_+1}/{epochs}, Loss: {avg_train_loss:.4f}, Test Accuracy: {val_accuracy:.4f}")
-        
-        # Plot Loss and Accuracy
-        plt.figure(figsize=(12, 5))
+    
+        # # Plot Loss and Accuracy
+        # plt.figure(figsize=(12, 5))
 
-        # Loss Plot
-        plt.subplot(1, 2, 1)
-        plt.plot(range(1, epochs + 1), train_losses, marker='o', linestyle='-', color='b', label='Training Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.title('Training Loss Over Epochs')
-        plt.legend()
+        # # Loss Plot
+        # plt.subplot(1, 2, 1)
+        # plt.plot(range(1, epochs + 1), train_losses, marker='o', linestyle='-', color='b', label='Training Loss')
+        # plt.xlabel('Epochs')
+        # plt.ylabel('Loss')
+        # plt.title('Training Loss Over Epochs')
+        # plt.legend()
         
-        # Accuracy Plot
-        plt.subplot(1, 2, 2)
-        plt.plot(range(1, epochs + 1), val_accuracies, marker='s', linestyle='-', color='r', label='Test Accuracy')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.title('Test Accuracy Over Epochs')
-        plt.legend()
+        # # Accuracy Plot
+        # plt.subplot(1, 2, 2)
+        # plt.plot(range(1, epochs + 1), val_accuracies, marker='s', linestyle='-', color='r', label='Test Accuracy')
+        # plt.xlabel('Epochs')
+        # plt.ylabel('Accuracy')
+        # plt.title('Test Accuracy Over Epochs')
+        # plt.legend()
         
-        plt.savefig(f'{log_save_path}/train_loss_val_accuracy_{client_id}')
-        
-        torch.save(model.state_dict(), f'{client_save_path}/local_net_{client_id}.pth')
-        
+        # plt.savefig(f'{log_save_path}/train_loss_val_accuracy_{client_id}')
+   
     
 if __name__ == "__main__":
     main()

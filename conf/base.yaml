@@ -2,7 +2,7 @@ num_clients: 100
 num_rounds: 100
 seed: 42
 session_name: local_epochs_influence
-algorithm: fedavg
+algorithm: fully_local
 device: cuda
 
 server_config:
@@ -17,7 +17,7 @@ hydra:
     dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 defaults:
-  - client_config: fedavg
+  - client_config: fully_local
   - dataset: cifar10
   - model: cnn_net
   

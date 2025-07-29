@@ -14,6 +14,7 @@ from flwr_datasets.visualization import plot_label_distributions
 from base.partitioner import load_partitioner
 from flwr.common import Context
 from flwr.common import RecordDict
+from load_classname import load_client_element
 from logging import INFO
 from flwr.common import log
 
@@ -64,15 +65,7 @@ def main(cfg: DictConfig) -> None:
 
     
     # Create a new client
-    log(INFO, f"ModelManager path : {cfg.algorithm}.model.ModelManager{cfg.algorithm.capitalize()}")
-    try:
-        model_manager = getattr(importlib.import_module(f'{cfg.algorithm}.model'), f'ModelManager{cfg.algorithm.capitalize()}')
-    except ModuleNotFoundError:
-        model_manager = getattr(importlib.import_module(f'base.model'), 'ModelManager')  
-    log(INFO, f"Client will use {model_manager} as model manager class")
-    model_name = ''.join(word.capitalize() for word in cfg.model.model_class_name.split('_')) # If a model file is mobile_net, the model name is MobileNet
-    model_module = getattr(importlib.import_module(f'nets.{cfg.model.model_class_name}'), model_name)
-    client_class_name = getattr(importlib.import_module(f'base.client'), cfg.client_config.client_class_name)
+    client_class_name, model_manager, model_module = load_client_element(cfg)
     client_fn = get_client_fn(cfg, client_save_path, fds, model_manager, model_module, client_class_name)
     client = ClientApp(client_fn)
     print(client)
@@ -92,12 +85,13 @@ def main(cfg: DictConfig) -> None:
             }
     )
     
-    
     if cfg.algorithm == 'fedavg-ft':
         for client_id in range(cfg.num_clients):
             client = client_class_name(client_id, model_manager, cfg)
-            client.model_manager.finetune_model(cfg.client_config.finetuned_epochs)
-
+            client.model_manager.model.disable_global_net()
+            client.model_manager.train(epochs=cfg.client_config.finetuned_epoch)
+            
+            
     print(history)
 
 if __name__ == "__main__":
