@@ -10,6 +10,7 @@ import numpy as np
 from base.model import ModelManager
 from base.partitioner import load_partitioner
 import importlib
+from load_classname import load_client_element
 
 def load_global_weights(global_weights_path: str, net_manager: ModelManager) -> None:
     with open(global_weights_path, 'rb') as f:
@@ -50,21 +51,13 @@ def main() -> None:
     print("Support (number of samples) for each class in the trainq split (from trainloader):")
     for cls, count in zip(unique_test, counts_test):
         print(f"Class {cls}: {count} samples")
-   
-    model_name = ''.join(word.capitalize() for word in cfg.model.model_class_name.split('_')) # If a model file is mobile_net, the model name is MobileNet
-    model_module = getattr(importlib.import_module(f'nets.{cfg.model.model_class_name}'), model_name)
-    try:
-        model_manager = getattr(importlib.import_module(f'{cfg.algorithm}.model'), f'ModelManager{cfg.algorithm.capitalize()}')  
-    except ModuleNotFoundError:
-        model_manager = getattr(importlib.import_module(f'base.model'), 'ModelManager')  
+     
+    _, model_manager, model_module = load_client_element(cfg)
     net_manager = model_manager(client_id, cfg, trainloader, testloader, model_class=model_module, client_save_path=client_local_net_model_path)
+    
     # We set the global_parameters as there is no server for testing. The managers handles the local net part on its own.
     if os.path.exists(f'{log_directory}/server_state'):
         load_global_weights(f'{log_directory}/server_state/parameters_round_{cfg.num_rounds}.pkl', net_manager)
-    else: # It means the model is fully localised
-        net_manager.client_save_path = None
-        state_dict = torch.load(f'{log_directory}/client_states/local_net_{client_id}.pth')
-        net_manager.model.load_state_dict(state_dict)
         
     res_dict = net_manager.test(full_report=True)
 

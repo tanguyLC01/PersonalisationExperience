@@ -5,6 +5,6 @@ optimiser: "sgd"
 num_cpus: 10
 num_gpus: 1
 local_body_epochs: 1
-local_head_epochs: 40
+local_head_epochs: 10
 momentum: 0.5
 weight_decay: 1e-4

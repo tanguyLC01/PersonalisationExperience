@@ -65,6 +65,7 @@ class BaseClient(NumPyClient):
 
         return self.model_manager.train(
             epochs=epochs,  
+            verbose=verbose
         )
     
     def fit(self, parameters, config) -> List[np.ndarray]:
