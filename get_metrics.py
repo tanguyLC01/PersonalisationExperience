@@ -9,17 +9,26 @@ import numpy as np
 # Fonction pour extraire les valeurs d'exactitude
 def extract_accuracies(log_path):
     accuracies = []
-    pattern = re.compile(r'\(\d+,\s*([0-9.]+)\)')
     log_file = OmegaConf.load(f'{log_path}/.hydra/config.yaml')
     algo = log_file.algorithm 
-    if algo == 'fedavgft' or algo == 'fully_local':
+    if algo == 'fully_local':
         sub_path = f'{log_path}/test_metrics'
         for file in os.listdir(sub_path):
             with open(f'{sub_path}/{file}', 'r') as file:
                 metric_file = json.load(file)               
                 accuracies.append(metric_file['accuracy'])
         mean_accuracy = sum(accuracies) / len(accuracies)
+    elif algo == 'fedavgft':
+        pattern = re.compile(f'Epoch {log_file.client_config.finetuned_epoch}/{log_file.client_config.finetuned_epoch}, Loss: [\d\.]+", Accuracy : ([\d\.]+)\)')
+        file_path =f'{log_path}/run.log'
+        with open(file_path, 'r') as file:
+            for line in file:
+                match = pattern.search(line)
+                if match:
+                    accuracies.append(float(match.group(1)))
+        mean_accuracy = sum(accuracies) / len(accuracies)
     else:
+        pattern = re.compile(r'\(\d+,\s*([0-9.]+)\)')
         file_path =f'{log_path}/run.log'
         with open(file_path, 'r') as file:
             for line in file:
@@ -41,7 +50,6 @@ def get_metrics(log_path: str) -> None:
         except subprocess.CalledProcessError as e:
             print(f"Run failed for {log_path}: {e}")
         
-    # Extraction des dix dernières valeurs ou de la valeur moyenne des accuracies apèrs fine-tuning
     mean_accuracy = extract_accuracies(log_path)*100
     client_accuracies = []
     for metric_dir in os.listdir(metric_path):

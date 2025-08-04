@@ -1,5 +1,3 @@
-import torch
-import pickle
 import os
 import argparse
 from omegaconf import OmegaConf
@@ -7,24 +5,9 @@ from base.utils import load_datasets
 from flwr_datasets import FederatedDataset
 import json
 import numpy as np
-from base.model import ModelManager
 from base.partitioner import load_partitioner
-import importlib
 from load_classname import load_client_element
-
-def load_global_weights(global_weights_path: str, net_manager: ModelManager) -> None:
-    with open(global_weights_path, 'rb') as f:
-        data = pickle.load(f)
-            
-        ndarrays = data['global_parameters']
-
-        state_dict = net_manager.model.global_net.state_dict()
-
-        new_state_dict = {}
-        for key, array in zip(state_dict.keys(), ndarrays):
-            new_state_dict[key] = torch.tensor(array, dtype=torch.float32)
-        
-        net_manager.model.global_net.load_state_dict(new_state_dict)
+from base.utils import load_global_weights
                 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate Personalized Models")
@@ -54,7 +37,7 @@ def main() -> None:
      
     _, model_manager, model_module = load_client_element(cfg)
     net_manager = model_manager(client_id, cfg, trainloader, testloader, model_class=model_module, client_save_path=client_local_net_model_path)
-    
+
     # We set the global_parameters as there is no server for testing. The managers handles the local net part on its own.
     if os.path.exists(f'{log_directory}/server_state'):
         load_global_weights(f'{log_directory}/server_state/parameters_round_{cfg.num_rounds}.pkl', net_manager)

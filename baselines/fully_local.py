@@ -1,33 +1,28 @@
 import sys
 import os
 
-from PersonalisationExperience.load_classname import load_client_element
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from load_classname import load_client_element
 import numpy as np
 import random
 from flwr_datasets import FederatedDataset
 import os
 import hydra
-import logging
 from omegaconf import DictConfig
-import torch
-import torch.nn as nn
-from flwr_datasets.partitioner import DirichletPartitioner
-from base.partitioner import DirichletSkewedPartitioner, VariablePathologicalPartitioner
 from base.utils import load_datasets
 from base.partitioner import load_partitioner
-import matplotlib.pyplot as plt
-from flwr.common.logger import log
+import logging
 from logging import INFO
 
+log = logging.getLogger(__name__)
 @hydra.main(config_path='../conf', config_name="base", version_base=None)
 def main(cfg: DictConfig) -> None:
     np.random.seed(cfg.seed) 
     random.seed(cfg.seed) 
 
     log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    log(INFO, f"Saving logs to {log_save_path}")
+    log.info(f"Saving logs to {log_save_path}")
     client_save_path = (
             f"{log_save_path}/client_states"
         )
@@ -39,14 +34,17 @@ def main(cfg: DictConfig) -> None:
         
     fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": train_partitioner, "test":  test_partitioner})
     
-    epochs = cfg.client_config.num_epochs * cfg.num_rounds * cfg.server_config.fraction_fit
+    epochs = int(cfg.client_config.num_epochs * cfg.num_rounds * cfg.server_config.fraction_fit)
+    print(epochs)
     for client_id in range(cfg.num_clients):
-        log(INFO, f"------------------ Training Client {client_id} ------------------")
+        log.info(f"------------------ Training Client {client_id} ------------------")
         trainloader, _, testloader  = load_datasets(client_id, fds, cfg)
+        log.info(f"Length trainloader : {len(trainloader)} ")
         client_classname, model_manager_class, model_module_class = load_client_element(cfg)
-        model_manager  = model_manager_class(partition_id=client_id, cfg=cfg, trainloader=trainloader, testloader=testloader, model_class=model_module_class, client_save_path=f"{client_save_path}/local_net_{client_id}.pth")
+        model_manager  = model_manager_class(client_id=client_id, config=cfg, trainloader=trainloader, testloader=testloader, model_class=model_module_class, client_save_path=f"{client_save_path}/local_net_{client_id}.pth")
         client = client_classname(client_id, model_manager, cfg)
-        client.model_manager.epochs = epochs
+        log.info(f'Epochs : {epochs}')
+        client.epochs = epochs
         client.perform_train(verbose=True)
 
     
