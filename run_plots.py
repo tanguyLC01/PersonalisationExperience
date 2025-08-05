@@ -6,8 +6,12 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import argparse
 import os
+from typing import Dict
+import plotly.io as pio
+pio.renderers.default = "browser"
 
-def extract_metrics(log_path):
+
+def extract_metrics(log_path: str) -> Dict[str, Dict]:
     # Initialisation
     metrics = {"fit": defaultdict(list), "evaluate": defaultdict(list)}
     pattern = re.compile(r"History \(metrics, distributed, (fit|evaluate)\):")
@@ -40,7 +44,7 @@ def extract_metrics(log_path):
                 print(f"Erreur lors du parsing des métriques : {e}")
     return metrics
 
-def plot_metrics(metrics):
+def plot_metrics(metrics, save_path: str) -> None:
     # Trouver toutes les métriques présentes
     all_metric_names = set(metrics["fit"].keys()) | set(metrics["evaluate"].keys())
     n_metrics = len(all_metric_names)
@@ -69,7 +73,9 @@ def plot_metrics(metrics):
         height=500,
         margin=dict(l=80, r=80, t=80, b=40)  
     )
-    fig.show()
+    
+    fig.write_image(save_path)
+    fig.show(renderer="browser")
     
 def main():
     parser = argparse.ArgumentParser(description="Plot Flower Metrics from Log File")
@@ -81,7 +87,8 @@ def main():
         return
 
     metrics = extract_metrics(args.log_path)
-    plot_metrics(metrics)
+    save_path = os.path.join(os.path.split(args.log_path)[0], "metric_plot.png")
+    plot_metrics(metrics, save_path)
 
 if __name__ == "__main__":
     main()
