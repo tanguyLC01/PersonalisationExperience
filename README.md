@@ -29,7 +29,10 @@ For example, if we want to launch a FedRep experiment on cifar-10 with a dirichl
 
 ## Usage
 If the strategy we want to use is already predefined, we <strong>only</strong> have to modify the configuration files.
-
+Otherwise, it is necessary to create a module with the name of the algorithm - <strong>this name will be the one in the algorithm field in the `base.yaml` file.</strong><br>
+Inside this module, you can derive from the `base` module some of the class - ModelManager, Client, .. - to adapt the code to the new strategy you want to implement.<br>
+You can find an example of this process in the `fedrep` and `fedavgft` module.<br>
+<strong>WARNING</strong> : Without inheritance from the `base` class, the whole module does not work.
 
 
 ## Troubleshooting
