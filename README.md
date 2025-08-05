@@ -1,5 +1,5 @@
 # Project Overview
-The goal of this project is to create a Federated Learning strategy agnostic framework to be able to run smoothly any parameter-decoupling algorithm by only implementing the new strategy.
+The goal of this project is to create a Federated Learning strategy agnostic framework to be able to run smoothly any decomposition based algorithm by only implementing the new strategy.
 ## Goals
 - Run Centralised Federated Learning rounds with personalised models, specific aggregation/training strategy (e.g FedPer, FedAvg, FedAvg+Ft, ...) 
 - Automate metrics and plots generation
