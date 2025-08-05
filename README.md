@@ -12,12 +12,11 @@ In `server.py`, you can find a derived of the FedAvg class that save the global 
 ## Model class
 <div style="display: flex; align-items: center;">
   <img src="model_fig.png" alt="Description" style="width: 150px; margin-right: 20px;">
-  <p>Your text goes here. This will appear to the right of the image.</p>
-</div>
-![image](model_fig.png){: style="float: left"}
-The whole benefit of this project lies in the `model` class.<br>
+  <p>The whole benefit of this project lies in the `model` class.<br>
 Every client will not see directly a model but they will own a model manager.<br>
-The model manager is the class that implements the strategy of the model<br>
+The model manager is the class that implements the strategy of the model<br></p>
+</div>
+
 ## Usage
 
 ## Configuration
