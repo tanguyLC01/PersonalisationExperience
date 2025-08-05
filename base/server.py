@@ -8,7 +8,6 @@ from collections import defaultdict
 import numpy as np
 
 from flwr.common import (
-    FitIns,
     FitRes,
     Parameters,
     Scalar,
@@ -19,17 +18,7 @@ from flwr.common import (
 
 from logging import WARNING, INFO
 from typing import Union, Optional
-from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
-
-
-def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
-    # Multiply accuracy of each client by number of examples used
-    accuracies = [num_examples * m["accuracy"] for num_examples, m in metrics]
-    examples = [num_examples for num_examples, _ in metrics]
-
-    # Aggregate and return custom metric (weighted average)
-    return {"accuracy": sum(accuracies) / sum(examples)}
     
 
 class PartialLayerFedAvg(FedAvg):

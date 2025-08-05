@@ -9,10 +9,11 @@ from flwr_datasets import FederatedDataset
 from typing import Callable, Tuple
 from omegaconf import DictConfig
 from flwr.server import ServerConfig, ServerAppComponents
-from base.server import PartialLayerFedAvg, weighted_average
+from base.server import PartialLayerFedAvg
 from base.client import BaseClient
 from base.model import ModelManager
-from typing import Type
+from typing import Type, List
+from flwr.common import Metrics
 
 
 
@@ -105,3 +106,16 @@ def load_global_weights(global_weights_path: str, net_manager: ModelManager) -> 
         
         net_manager.model.global_net.load_state_dict(new_state_dict)  
 
+def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
+    losses = []
+    accuracies = []
+    n_sample = 0
+    for num_examples, m in metrics:
+        # Multiply loss of each client by the number of examples used
+        losses.append(num_examples * m["loss"])
+        # Multiply accuracy of each client by number of examples used
+        accuracies.append(num_examples * m["accuracy"])
+        n_sample += num_examples
+
+    # Aggregate and return custom metric (weighted average)
+    return {"loss": sum(losses)/n_sample, "accuracy": sum(accuracies) / n_sample}
