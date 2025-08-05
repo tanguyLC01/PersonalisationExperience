@@ -3,4 +3,4 @@ num_classes: 10
 seed: ${seed}$
 num_clients: ${num_clients}
 defaults:
-  - partitioner: dirichlet
+  - partitioner: fedrep

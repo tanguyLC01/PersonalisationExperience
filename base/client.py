@@ -77,14 +77,14 @@ class BaseClient(NumPyClient):
         log(INFO, f"Training Results ------- Client {self.partition_id}")
         log(INFO, f'{train_results}')
 
-        return self.get_parameters(config), self.model_manager.train_dataset_size(), {}
+        return self.get_parameters(config), self.model_manager.train_dataset_size(), train_results
     
     def evaluate(self, parameters: NDArrays, config: Dict[str, Scalar]) -> Tuple[float, int, dict]:
         """Evaluate the network and return the loss and accuracy."""
         print(f"[Client {self.partition_id}] evaluate, config: {config}")
         self.set_parameters(parameters, evaluate=True)
         loss, accuracy = self.model_manager.test().values()
-        return float(loss), self.model_manager.test_dataset_size(), {"accuracy": float(accuracy)}
+        return float(loss), self.model_manager.test_dataset_size(), {"accuracy": float(accuracy), "loss": float(loss)}
 
 class PersonalizedClient(BaseClient):
     def __init__(self, partition_id: int, model_manager: type[ModelManager], config: Dict[str, Scalar]) -> None:

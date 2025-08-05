@@ -1,4 +1,4 @@
-client_class_name: 'PersonalizedClient'
+client_class_name: 'BaseClient'
 num_epochs: 10 
 batch_size: 10
 learning_rate: 0.01

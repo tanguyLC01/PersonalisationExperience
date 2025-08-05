@@ -1,0 +1,23 @@
+num_clients: 100
+num_rounds: 300
+seed: 42
+session_name: finetuned_epoch_influence
+algorithm: fedavgft
+device: cuda
+
+server_config:
+  fraction_fit: 0.1
+  fraction_evaluate: 1
+  min_fit_clients: 2
+  min_evaluate_clients: 2
+  min_available_clients: 2
+
+hydra:
+  run:
+    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${hydra.job.num}
+    #dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+defaults:
+  - dataset: cifar10
+  - client_config: fedavgft
+  - model: cnn_net

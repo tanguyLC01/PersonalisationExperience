@@ -6,26 +6,27 @@ from flwr_datasets import FederatedDataset
 import os
 import hydra
 from omegaconf import DictConfig
-import importlib
 from flwr.server import ServerApp
 from base.utils import get_server_fn, get_client_fn
 import matplotlib.pyplot as plt
 from flwr_datasets.visualization import plot_label_distributions
 from base.partitioner import load_partitioner
-from flwr.common import Context
-from flwr.common import RecordDict
 from load_classname import load_client_element
 from logging import INFO
 from flwr.common import log
+import torch
+import logging
+import json
+from base.utils import load_datasets, load_global_weights
 
-#partitioner = DirichletPartitioner(num_partitions=NUM_CLIENTS, partition_by="label",
-#                                   alpha=0.1, min_partition_size=10)
-
+main_logger = logging.getLogger(__name__)
 
 @hydra.main(config_path='conf', config_name="base", version_base=None)
 def main(cfg: DictConfig) -> None:
     np.random.seed(cfg.seed) 
     random.seed(cfg.seed)   
+    torch.manual_seed(cfg.seed)
+    torch.cuda.manual_seed_all(cfg.seed)
     log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
     log(INFO, f"Saving logs to {log_save_path}")
     client_save_path = (
@@ -75,7 +76,7 @@ def main(cfg: DictConfig) -> None:
     server = ServerApp(server_fn=server_fn)
 
     # Run simulation
-    history = run_simulation(
+    run_simulation(
         server_app=server,
         client_app=client,
         num_supernodes=cfg.num_clients,
@@ -84,15 +85,19 @@ def main(cfg: DictConfig) -> None:
              "num_gpus": cfg.client_config.num_gpus}
             }
     )
-    
-    if cfg.algorithm == 'fedavg-ft':
+        
+    if cfg.algorithm == 'fedavgft':
         for client_id in range(cfg.num_clients):
-            client = client_class_name(client_id, model_manager, cfg)
-            client.model_manager.model.disable_global_net()
-            client.model_manager.train(epochs=cfg.client_config.finetuned_epoch)
+            client_local_net_model_path = f"{client_save_path}/local_net_{client_id}.pth"
+            trainloader, _, testloader = load_datasets(client_id, fds, cfg)
+            mobile_net_manager = model_manager(client_id, cfg, trainloader, testloader, model_class=model_module, client_save_path=client_local_net_model_path)
+            client = client_class_name(client_id, mobile_net_manager, cfg)
+            # Set the global weights of the model
+            load_global_weights(os.path.join(server_save_path, f'parameters_round_{cfg.num_rounds}.pkl'), client.model_manager)   
+            log(INFO, f"Fine-tuning client {client_id}")
+            client.model_manager.finetune_model() 
             
-            
-    print(history)
+
 
 if __name__ == "__main__":
     main()

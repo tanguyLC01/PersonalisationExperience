@@ -1,8 +1,8 @@
-num_clients: 100
-num_rounds: 300
+num_clients: 10
+num_rounds: 4
 seed: 42
-session_name: finetuned_epoch_influence
-algorithm: fedavgft
+session_name: test
+algorithm: fedavg
 device: cuda
 
 server_config:
@@ -14,10 +14,10 @@ server_config:
 
 hydra:
   run:
-    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${hydra.job.num}
-
+    #dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${hydra.job.num}
+    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 defaults:
   - dataset: cifar10
-  - client_config: fedavgft
+  - client_config: fedavg
   - model: cnn_net

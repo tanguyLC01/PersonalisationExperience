@@ -1,4 +1,4 @@
-client_class_name: 'PersonalizedClient'
+client_class_name: 'BaseClient'
 finetuned_epoch: 10
 num_epochs: 10
 batch_size: 10

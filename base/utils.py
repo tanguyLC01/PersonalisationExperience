@@ -1,19 +1,19 @@
 from flwr.common import Context
+import pickle
 from torch import nn
-from flwr.simulation import run_simulation
+import torch
 from flwr.server import ServerAppComponents
 from torch.utils.data import DataLoader
 from torchvision import transforms 
 from flwr_datasets import FederatedDataset
 from typing import Callable, Tuple
 from omegaconf import DictConfig
-import importlib
 from flwr.server import ServerConfig, ServerAppComponents
 from base.server import PartialLayerFedAvg, weighted_average
-
 from base.client import BaseClient
 from base.model import ModelManager
 from typing import Type
+
 
 
 
@@ -40,6 +40,7 @@ def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], Serv
             min_fit_clients=cfg.server_config.min_fit_clients,
             min_evaluate_clients=cfg.server_config.min_evaluate_clients,
             min_available_clients=cfg.server_config.min_available_clients,
+            fit_metrics_aggregation_fn=weighted_average,
             evaluate_metrics_aggregation_fn=weighted_average
         )
 
@@ -87,5 +88,20 @@ def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset,
         mobile_net_manager = model_manager(partition_id, cfg, trainloader, testloader, model_class=model_module, client_save_path=client_local_net_model_path)
         return client_class(partition_id, mobile_net_manager, cfg).to_client()
     
-    return client_fn   
+    return client_fn 
+
+
+def load_global_weights(global_weights_path: str, net_manager: ModelManager) -> None:
+    with open(global_weights_path, 'rb') as f:
+        data = pickle.load(f)
+            
+        ndarrays = data['global_parameters']
+
+        state_dict = net_manager.model.global_net.state_dict()
+
+        new_state_dict = {}
+        for key, array in zip(state_dict.keys(), ndarrays):
+            new_state_dict[key] = torch.tensor(array, dtype=torch.float32)
+        
+        net_manager.model.global_net.load_state_dict(new_state_dict)  
 

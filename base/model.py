@@ -156,7 +156,6 @@ class ModelManager:
         self.trainloader = trainloader
         self.testloader = testloader
         self.client_save_path = client_save_path
-        log(INFO, f'Client save path : {self.client_save_path}')
         self.client_id = client_id
         self.config = config
         self.device = self.config.device
@@ -262,15 +261,16 @@ class ModelManager:
                     all_preds.extend(predicted.cpu().numpy())
                     all_targets.extend(labels.cpu().numpy())
                     
+        accuracy = correct / total
         final_dict = {
             "loss": loss / len(self.testloader.dataset),
-            "accuracy": correct / total,
+            "accuracy": accuracy,
         }
         
         if full_report:    
             final_dict['report'] = classification_report(all_targets, all_preds, output_dict=True, zero_division=0)
             
-        print("Test Accuracy: {:.4f}".format(correct / total))
+        print("Test Accuracy: {:.4f}".format(accuracy))
 
         return final_dict
 
