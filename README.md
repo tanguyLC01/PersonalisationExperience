@@ -12,7 +12,7 @@ In `server.py`, we can find a derived of the FedAvg class that save the global p
 ### Model class
 <div style="display: flex; align-items: center;">
   <img src="model_fig.png" alt="Description" style="width: 150px; margin-right: 20px;">
-  <p>The whole benefit of this project lies in the `model` class.<br>
+  <p>The whole benefit of this project lies in the <i>model</i> class.<br>
 Every client will not see directly a model but they will own a model manager.<br>
 The model manager is the class that implements the strategy of the model (training, testing and personalization handling).<br>
 The model split class is only a class wrapped around the model so that any other class sees the Deep Neural Network (DNN) as a real split between local and global nets. </p>
