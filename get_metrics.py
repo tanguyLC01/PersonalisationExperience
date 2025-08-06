@@ -5,6 +5,7 @@ import os
 import json
 import subprocess
 import numpy as np
+import sys
 
 # Fonction pour extraire les valeurs d'exactitude
 def extract_accuracies(log_path):
@@ -44,7 +45,8 @@ def get_metrics(log_path: str) -> None:
     
     metric_path = os.path.join(log_path, 'test_metrics')
     if not os.path.exists(metric_path):
-        cmd = ["python3", "get_results.py", "-l", log_path]
+        print("No test metrics found, running evaluation script...")
+        cmd = [sys.executable, "get_results.py", "-l", log_path]
         try:
             subprocess.run(cmd)
         except subprocess.CalledProcessError as e:
