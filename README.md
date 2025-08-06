@@ -20,7 +20,7 @@ The model split class is only a class wrapped around the model so that any other
 
 ## Configuration
 The configuration files are in the `conf` folder. We use Hydra system to be able to handle multiple configurations at once.<br>
-The main usage is to create/change the configurations in `client_config`, `dataset`, `model` to fit to desire strategy and then, go to the `base` file to change the defaults value to the corresponding modified/new sub-files.<br>
+The main usage is to create/change the configurations in `client_config`, `dataset`, `model` to fit to desire strategy and then, go to the `base` file to change the default values to the corresponding modified/new sub-files.<br>
 For example, if we want to launch a FedRep experiment on cifar-10 with a dirichlet partitioner :
 <ul>
 <li> We will change the value of <i>algorithm</i> and <i>client_config</i> to <i>fedrep</i> in base.yaml.</li>
@@ -28,7 +28,7 @@ For example, if we want to launch a FedRep experiment on cifar-10 with a dirichl
 </ul>
 
 ## Usage
-If the strategy we want to use is already predefined, we <strong>only</strong> have to modify the configuration files.
+If the strategy we want to use is already predefined, we <strong>only</strong> have to modify the configuration files.<br>
 Otherwise, it is necessary to create a module with the name of the algorithm - <strong>this name will be the one in the algorithm field in the `base.yaml` file.</strong><br>
 Inside this module, you can derive from the `base` module some of the class - ModelManager, Client, .. - to adapt the code to the new strategy you want to implement.<br>
 You can find an example of this process in the `fedrep` and `fedavgft` module.<br>
