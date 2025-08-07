@@ -1,0 +1,4 @@
+name: dirichletskewed
+alpha_rich: 5.0
+alpha_poor: 0.6
+rich_client_ratio: 0.4
