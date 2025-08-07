@@ -347,7 +347,7 @@ def load_partitioner(cfg: DictConfig, ) -> Partitioner:
         
     elif cfg.dataset.partitioner.name == "dirichletskewed":
         test_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_client_ratio=cfg.dataset.partitioner.rich_client_ratio, alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
-        train_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
+        train_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_client_ratio=cfg.dataset.partitioner.rich_client_ratio, alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
         
     elif cfg.dataset.partitioner.name == "variable_pathological":
         train_partitioner = VariablePathologicalPartitioner(
