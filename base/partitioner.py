@@ -12,7 +12,7 @@ from omegaconf import DictConfig
 
 
 class DirichletSkewedPartitioner(Partitioner):
-    def __init__(self, num_partitions: int, rich_clients: List[int], alpha_rich=5.0, alpha_poor=0.1, seed: Optional[int] = 42) -> None:
+    def __init__(self, num_partitions: int, rich_client_ratio: int,  alpha_rich=5.0, alpha_poor=0.1, seed: Optional[int] = 42) -> None:
         """
         Args:
             num_partitions (int): Number of clients.
@@ -22,9 +22,9 @@ class DirichletSkewedPartitioner(Partitioner):
         """
         super().__init__()
         self._num_partitions = num_partitions
-        self.rich_clients = set(rich_clients)
         self.alpha_rich = alpha_rich
         self.alpha_poor = alpha_poor
+        self.rich_client_ratio = rich_client_ratio
         self._partition_id_to_indices: dict[int, list[int]] = {}
         self._partition_id_to_indices_determined = False
         self._seed = seed
@@ -41,6 +41,12 @@ class DirichletSkewedPartitioner(Partitioner):
         class_indices = defaultdict(list)
         for idx, label in enumerate(label_list):
             class_indices[label].append(idx)
+            
+        num_rich = int(self.rich_client_ratio * self._num_partitions)
+        all_clients = list(range(self._num_partitions))
+        self._rng.shuffle(all_clients)
+        self.rich_clients = set(all_clients[:num_rich])
+        self.poor_clients = set(all_clients[num_rich:])
 
         # Prepare per-client index lists
         client_indices = defaultdict(list)
@@ -339,8 +345,8 @@ def load_partitioner(cfg: DictConfig, ) -> Partitioner:
         train_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
         test_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
         
-    elif cfg.dataset.partitioner.name == "dirichletskew":
-        test_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
+    elif cfg.dataset.partitioner.name == "dirichletskewed":
+        test_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_client_ratio=cfg.dataset.partitioner.rich_client_ratio, alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
         train_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_clients=[0], alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)
         
     elif cfg.dataset.partitioner.name == "variable_pathological":
