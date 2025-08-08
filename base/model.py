@@ -221,7 +221,7 @@ class ModelManager:
         if self.client_save_path is not None:
             torch.save(self.model.local_net.state_dict(), self.client_save_path)
 
-        return {"loss": loss.item(), "accuracy": correct / total}
+        return {"loss": loss.item() / len(self.trainloader) / epochs , "accuracy": correct / total}
         
 
     def test(

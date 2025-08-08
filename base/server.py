@@ -1,5 +1,4 @@
 from typing import List, Tuple, Dict
-from flwr.common import Metrics
 from flwr.server.strategy import FedAvg
 import os
 import flwr

@@ -3,12 +3,13 @@ import ast
 import matplotlib.pyplot as plt
 from collections import defaultdict
 import plotly.graph_objs as go
-from plotly.subplots import make_subplots
 import argparse
 import os
 from typing import Dict
 import plotly.io as pio
 pio.renderers.default = "browser"
+import plotly.graph_objects as go
+
 
 
 def extract_metrics(log_path: str) -> Dict[str, Dict]:
@@ -45,37 +46,43 @@ def extract_metrics(log_path: str) -> Dict[str, Dict]:
     return metrics
 
 def plot_metrics(metrics, save_path: str) -> None:
+
     # Trouver toutes les métriques présentes
     all_metric_names = set(metrics["fit"].keys()) | set(metrics["evaluate"].keys())
-    n_metrics = len(all_metric_names)
-    fig = make_subplots(rows=n_metrics, cols=1, subplot_titles=[m.capitalize() for m in all_metric_names], horizontal_spacing=0.15)
-    
-    for idx, metric in enumerate(all_metric_names):
-        for section, label, color in [("fit", "Train ", "blue"), ("evaluate", "Test ", "red")]:
+
+    for metric in all_metric_names:
+        fig = go.Figure()
+
+        # Ajout des courbes pour train et test
+        for section, label, color in [
+            ("fit", "Train", "blue"),
+            ("evaluate", "Test", "red")
+        ]:
             if metric in metrics[section]:
                 rounds, values = zip(*metrics[section][metric])
-                trace = go.Scatter(
+                fig.add_trace(go.Scatter(
                     x=rounds,
                     y=values,
                     mode='lines+markers',
                     name=f"{label} - {metric}",
-                    marker=dict(color=color),
-                    showlegend=(idx == 0)  # Show legend only for first subplot
-                )
-                fig.add_trace(trace, row=idx+1, col=1)
-        fig.update_xaxes(title_text="Round", row=1, col=idx+1)
-        fig.update_yaxes(title_text=metric.capitalize(), row=1, col=idx+1)
+                    marker=dict(color=color)
+                ))
 
-    fig.update_layout(
-        title="Flower Metrics: Train vs Evaluate",
-        legend=dict(x=1.05, y=1),
-        width=800 * n_metrics,
-        height=500,
-        margin=dict(l=80, r=80, t=80, b=40)  
-    )
-    
-    fig.write_image(save_path)
-    fig.show(renderer="browser")
+        # Mise en forme
+        fig.update_layout(
+            title=f"Flower Metrics: {metric.capitalize()} (Train vs Test)",
+            xaxis_title="Round",
+            yaxis_title=metric.capitalize(),
+            legend=dict(x=1.05, y=1),
+            width=800,
+            height=500,
+            margin=dict(l=80, r=80, t=80, b=40)
+        )
+
+        # Sauvegarder et afficher
+        fig.write_image(f"{save_path}_{metric}.png")
+        fig.show(renderer="browser")
+
     
 def main():
     parser = argparse.ArgumentParser(description="Plot Flower Metrics from Log File")
@@ -87,7 +94,7 @@ def main():
         return
 
     metrics = extract_metrics(args.log_path)
-    save_path = os.path.join(os.path.split(args.log_path)[0], "metric_plot.png")
+    save_path = os.path.join(os.path.split(args.log_path)[0], "metric_")
     plot_metrics(metrics, save_path)
 
 if __name__ == "__main__":
