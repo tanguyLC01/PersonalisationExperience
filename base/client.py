@@ -29,7 +29,7 @@ class BaseClient(NumPyClient):
     def set_parameters(
         self, parameters: List[np.ndarray], evaluate: bool = False
     ) -> None:
-        """Set the local_net model parameters to the received parameters.
+        """Set the local model parameters to the received parameters.
 
         Args:
             parameters: parameters to set the model to.
@@ -91,7 +91,7 @@ class PersonalizedClient(BaseClient):
         super().__init__(partition_id, model_manager, config)  
 
     def get_parameters(self, config) -> List[np.ndarray]:
-        """Return the current local_net global_net parameters."""
+        """Return the current global_net parameters."""
         return [
             val.cpu().numpy()
             for _, val in self.model_manager.model.global_net.state_dict().items()

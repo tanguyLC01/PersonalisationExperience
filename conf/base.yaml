@@ -1,7 +1,7 @@
-num_clients: 10
-num_rounds: 4
+num_clients: 100
+num_rounds: 300
 seed: 42
-session_name: test
+session_name: dirichlet_skewed_fedper
 algorithm: fedavg
 device: cuda
 
@@ -14,10 +14,10 @@ server_config:
 
 hydra:
   run:
-    #dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}_${hydra.job.num}
-    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}s
+
 
 defaults:
   - dataset: cifar10
   - client_config: fedavg
-  - model: cnn_net
+  - model: cnn_net_dirichlet

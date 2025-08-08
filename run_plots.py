@@ -48,7 +48,7 @@ def plot_metrics(metrics, save_path: str) -> None:
     # Trouver toutes les métriques présentes
     all_metric_names = set(metrics["fit"].keys()) | set(metrics["evaluate"].keys())
     n_metrics = len(all_metric_names)
-    fig = make_subplots(rows=1, cols=n_metrics, subplot_titles=[m.capitalize() for m in all_metric_names], horizontal_spacing=0.15)
+    fig = make_subplots(rows=n_metrics, cols=1, subplot_titles=[m.capitalize() for m in all_metric_names], horizontal_spacing=0.15)
     
     for idx, metric in enumerate(all_metric_names):
         for section, label, color in [("fit", "Train ", "blue"), ("evaluate", "Test ", "red")]:
@@ -62,14 +62,14 @@ def plot_metrics(metrics, save_path: str) -> None:
                     marker=dict(color=color),
                     showlegend=(idx == 0)  # Show legend only for first subplot
                 )
-                fig.add_trace(trace, row=1, col=idx+1)
+                fig.add_trace(trace, row=idx+1, col=1)
         fig.update_xaxes(title_text="Round", row=1, col=idx+1)
         fig.update_yaxes(title_text=metric.capitalize(), row=1, col=idx+1)
 
     fig.update_layout(
         title="Flower Metrics: Train vs Evaluate",
         legend=dict(x=1.05, y=1),
-        width=400 * n_metrics,
+        width=800 * n_metrics,
         height=500,
         margin=dict(l=80, r=80, t=80, b=40)  
     )
