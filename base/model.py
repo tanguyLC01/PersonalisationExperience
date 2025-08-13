@@ -201,7 +201,7 @@ class ModelManager:
                 {"params": biases, "weight_decay": 0.0},
             ], lr=self.config.client_config.learning_rate, momentum=self.config.client_config.momentum)
         correct, total = 0, 0
-        loss: torch.Tensor = 0.0
+        epoch_loss = 0.0
         self.model.train()
         for _ in range(epochs):
             for batch in self.trainloader:
@@ -211,17 +211,18 @@ class ModelManager:
                 labels = labels.to(self.device)
                 loss = criterion(outputs, labels)
                 loss.backward()
+                epoch_loss += loss.item()
                 optimizer.step()
                 total += labels.size(0)
                 correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
             if verbose and _ >= epochs // 10 and _ % 10 == 0:
-                log(INFO, f"Epoch {_+1}/{epochs}, Loss: {loss / len(self.trainloader):.4f}")
+                log(INFO, f"Epoch {_+1}/{epochs}, Loss: {epoch_loss / len(self.trainloader):.4f}")
                 
         # Save client state (local_net)
         if self.client_save_path is not None:
             torch.save(self.model.local_net.state_dict(), self.client_save_path)
 
-        return {"loss": loss.item() / len(self.trainloader) / epochs , "accuracy": correct / total}
+        return {"loss": epoch_loss / len(self.trainloader) / epochs , "accuracy": correct / total}
         
 
     def test(

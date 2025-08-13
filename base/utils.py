@@ -70,7 +70,7 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
     # Create train/val for each partition and wrap it into DataLoader
     partition_train_test = partition_train_test.with_transform(apply_transforms)
     trainloader = DataLoader(
-        partition_train_test["train"], batch_size=cfg.client_config.batch_size, shuffle=True
+        partition_train_test["train"], batch_size=cfg.client_config.batch_size, shuffle=True, drop_last=True # We drop the last batch if the dataset's size of the client is not divisible by the batch size.
     )
     valloader = DataLoader(partition_train_test["test"], batch_size=cfg.client_config.batch_size)
     testset = fds.load_partition(partition_id, split='test').with_transform(apply_transforms)

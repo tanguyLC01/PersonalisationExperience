@@ -15,7 +15,7 @@ class CnnNet(nn.Module):
             nn.Flatten(),
             nn.Linear(64 * 5 * 5, 120),
             nn.ReLU(),
-            nn.Linear(120, 64),
+            nn.Linear(120, 84),
             nn.ReLU(),
             nn.Linear(64, num_classes)
         )

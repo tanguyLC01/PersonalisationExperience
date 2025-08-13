@@ -59,7 +59,7 @@ class MobileNet(nn.Module):
                 self.global_net.add_module(f"conv_dw_{i}", conv_dw(*value))
 
         self.global_net.add_module('classification_module', nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(1, 1))
-                                                                          , nn.Flatten()
+                                                                          ,nn.Flatten()
                                                                           ,nn.Linear(1024, num_classes)))
         self.local_net = nn.Identity()
 
