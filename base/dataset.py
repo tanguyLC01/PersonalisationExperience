@@ -1,20 +1,20 @@
-import os
-import random
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from PIL import Image
 import json
 from flwr_datasets.partitioner import Partitioner
-
+from flwr_datasets.common import event, EventType
+import os
 # Import the parent class (adjust the import path based on your project structure)
 from flwr_datasets.federated_dataset import FederatedDataset
-from datasets import Dataset
+import datasets
+from datasets import concatenate_datasets, ClassLabel, DatasetDict, Image, Value, Features
 
-class DBB100KDataset(FederatedDataset):
+class BDD100KDataset(FederatedDataset):
     """
-    DBB100K Dataset class that derives from FederatedDataset.
+    BDD100K Dataset class that derives from FederatedDataset.
     
     Expected directory structure:
     100k/
@@ -60,7 +60,7 @@ class DBB100KDataset(FederatedDataset):
         self._event = {}
         self._dataset = None
         
-        super(DBB100KDataset, self).__init__(dataset=dataset, partitioners=partitioners)
+        super(BDD100KDataset, self).__init__(dataset=dataset, partitioners=partitioners)
     
     
     def _load_dbb100k_dataset(self) -> Dict[str, List[Tuple[str, str]]]:
@@ -107,8 +107,11 @@ class DBB100KDataset(FederatedDataset):
                         label_file = potential_label
                         break
                 
+                with open(label_file, "r") as f:
+                    label_data = json.load(f)['attributes']['scene']
+                    
                 if label_file:
-                    split_samples.append((str(img_file), str(label_file)))
+                    split_samples.append((str(img_file), str(label_data)))
                 else:
                     missing_labels.append(img_file.name)
             
@@ -117,16 +120,21 @@ class DBB100KDataset(FederatedDataset):
             
             images, labels = zip(*split_samples)
             dictionnaries_form = {
-                "image": list(images),
+                "img": list(images),
                 "label": list(labels),
             }
             
-            dataset_dict[split] = Dataset.from_dict(dictionnaries_form)
+            dataset_dict[split] = datasets.Dataset.from_dict(dictionnaries_form)
             print(f"Loaded {len(split_samples)} samples for '{split}' split")
         
         if not dataset_dict:
             raise ValueError(f"No valid splits found in {self.root_path}")
         
+        if "train" in dataset_dict and "val" in dataset_dict:
+            dataset_dict["train"] = concatenate_datasets([dataset_dict["train"], dataset_dict["val"]])
+            del dataset_dict["val"]
+            print(f"Merged train + val → {len(dataset_dict['train'])} samples")
+
         return dataset_dict
     
     def _shuffle_dataset(self, dataset_dict: Dict[str, Dataset]) -> Dict[str, List]:
@@ -142,7 +150,6 @@ class DBB100KDataset(FederatedDataset):
         shuffled_dict = {}
         
         for split, samples in dataset_dict.items():
-            print(type(samples))
             shuffled_dict[split] = samples.shuffle(seed=self._seed)
         
         return shuffled_dict
@@ -206,7 +213,7 @@ class DBB100KDataset(FederatedDataset):
             by using the `preprocessor` parameter (to rename, merge, divide, etc. the
             available splits).
 
-        Returns
+        ReturnsZ
         -------
         partition : Dataset
             Single partition from the dataset split.
@@ -235,9 +242,9 @@ class DBB100KDataset(FederatedDataset):
                 },
             )
             self._event["load_partition"][split] = True
-        return partition
 
-
+        return DBB100KTorchDataset(partition['img'], partition['label'])
+    
 class DBB100KTorchDataset(Dataset):
     """
     PyTorch Dataset wrapper for DBB100K data.
@@ -245,18 +252,19 @@ class DBB100KTorchDataset(Dataset):
     
     def __init__(self, 
                  image_files: list,
-                 label_files: list,
-                 transform=None,
-                 target_transform=None):
+                 labels: List[str]):
+
         self.image_files = image_files
-        self.label_files = label_files
-        self.transform = transform
-        self.target_transform = target_transform
+        self.labels = labels
+      
+
+        class_names = sorted(set(labels))
+        self.class_label = ClassLabel(names=class_names)
     
     def __len__(self):
         return len(self.image_files)
     
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Any]:
         # Load image
         img_path = self.image_files[idx]
         image = Image.open(img_path).convert('RGB')
@@ -264,24 +272,17 @@ class DBB100KTorchDataset(Dataset):
         # Load label
         label_path = self.label_files[idx]
         label = self._load_label(label_path)
-        
-        # Apply transforms
-        if self.transform:
-            image = self.transform(image)
-        
-        if self.target_transform:
-            label = self.target_transform(label)
-        
-        return image, label
+        label_id = self.class_label.str2int(label)
+        return image, label_id
     
-    def _load_label(self, label_path: Path):
+    def _load_label(self, label_path: str) -> Any:
         """
         Load label from file. Handles different label formats.
         """
-        if label_path.suffix.lower() == '.json':
+        if label_path.endswith('.json'):
             with open(label_path, 'r') as f:
                 label = json.load(f)
-        elif label_path.suffix.lower() == '.txt':
+        elif label_path.endswith('.txt'):
             with open(label_path, 'r') as f:
                 label = f.read().strip()
         else:
@@ -289,4 +290,80 @@ class DBB100KTorchDataset(Dataset):
             with open(label_path, 'r') as f:
                 label = f.read().strip()
         
-        return label
+        return label['attributes']['scene']
+
+
+def load_dbb100k_dataset(root_path: str) -> Dict[str, List[Tuple[str, str]]]:
+        """
+        Load the DBB100K dataset from local directory structure.
+        
+        Returns:
+            Dict with splits as keys and list of (image_path, label_path) tuples as values
+        """
+        dataset_dict = {}
+        expected_splits = ['train', 'test', 'val']
+        root_path = Path(root_path)
+        label_extension = ".json"
+        
+        all_labels= set()
+        for split in expected_splits:
+            labels_path = root_path / "labels" / split
+            for lbl_file in os.listdir(labels_path):
+                label_file = labels_path / lbl_file
+                with open(label_file, "r") as f:
+                    label_data = json.load(f)['attributes']['scene']
+                    all_labels.add(label_data)
+        
+        all_labels = sorted(all_labels)
+        label_feature = ClassLabel(names=all_labels)
+
+        for split in expected_splits:
+            images_path = root_path / "images" / split
+            labels_path = root_path / "labels" / split
+            
+            # Skip splits that don't exist
+            if not images_path.exists() or not labels_path.exists():
+                print(f"Warning: Split '{split}' not found, skipping...")
+                continue
+            
+            # Get all image files
+            image_extension = '.jpg'
+            image_files = []
+            
+            image_files.extend(list(images_path.glob(f"*{image_extension}")))
+            image_files.extend(list(images_path.glob(f"*{image_extension.upper()}")))
+        
+            image_files.sort()
+            
+            # Get corresponding label files
+            split_samples = []
+            all_labels = set()
+            for img_file in image_files:
+                # Try different label file extensions
+                
+                label_file = labels_path / (img_file.stem + label_extension)
+                    
+                with open(label_file, "r") as f:
+                    label_data = json.load(f)['attributes']['scene']
+
+                split_samples.append({'img': str(img_file), 'label': str(label_data)})
+            
+            features = Features({
+                    "img": Image(),
+                    "label":label_feature,
+            })
+        
+            dataset_dict[split] = datasets.Dataset.from_list(split_samples, features=features)
+            print(f"Loaded {len(split_samples)} samples for '{split}' split")
+        
+        if not dataset_dict:
+            raise ValueError(f"No valid splits found in {root_path}")
+        
+        if "train" in dataset_dict and "val" in dataset_dict:
+            dataset_dict["train"] = concatenate_datasets([dataset_dict["train"], dataset_dict["val"]])
+            del dataset_dict["val"]
+            print(f"Merged train + val → {len(dataset_dict['train'])} samples")
+           
+        for split in dataset_dict:
+            dataset_dict[split].set_format(type="torch", columns=["img", "label"])
+        return DatasetDict(dataset_dict)
