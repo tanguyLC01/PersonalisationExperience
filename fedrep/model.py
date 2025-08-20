@@ -44,6 +44,7 @@ class ModelManagerFedrep(ModelManager):
                 {"params": biases, "weight_decay": 0.0},
             ], lr=self.config.client_config.learning_rate, momentum=self.config.client_config.momentum)
         correct, total = 0, 0
+        epoch_loss = 0
         loss: torch.Tensor = 0.0
         self._model.train()
         self._model.disable_global_net()
@@ -56,6 +57,7 @@ class ModelManagerFedrep(ModelManager):
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
+                epoch_loss += loss.item()
                 total += labels.size(0)
                 correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
             if verbose and _ >= epochs // 10 and _ % 10 == 0:
@@ -72,6 +74,7 @@ class ModelManagerFedrep(ModelManager):
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
+                epoch_loss += loss.item()
                 total += labels.size(0)
                 correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
             if verbose and _ >= epochs // 10 and _ % 10 == 0:
@@ -81,5 +84,5 @@ class ModelManagerFedrep(ModelManager):
         if self.client_save_path is not None:
             torch.save(self.model.local_net.state_dict(), self.client_save_path)
 
-        return {"loss": loss.item(), "accuracy": correct / total}
-        
+        return {"loss": epoch_loss / len(self.trainloader) / self.local_body_epochs / self.local_head_epochs, "accuracy": correct / total}
+    

@@ -12,9 +12,10 @@ from flwr.server import ServerConfig, ServerAppComponents
 from base.server import PartialLayerFedAvg
 from base.client import BaseClient
 from base.model import ModelManager
-from typing import Type, List
+from typing import Type, List, Union, Dict
 from flwr.common import Metrics
-
+from flwr_datasets.partitioner import Partitioner
+from PIL import Image
 
 
 
@@ -52,8 +53,11 @@ def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], Serv
     
     return server_fn
 
-def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> Tuple[DataLoader, DataLoader, DataLoader]:
-    partition = fds.load_partition(partition_id, split='train')
+def load_datasets(partition_id: int, fds: Union[FederatedDataset, Dict[str, Partitioner]], cfg: DictConfig) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    if isinstance(fds, dict):
+        partition = fds['train'].load_partition(partition_id)
+    else:
+        partition = fds.load_partition(partition_id, split='train')
     # Divide data on each node: 80% train, 20% test
     partition_train_test = partition.train_test_split(test_size=0.2, seed=cfg.seed)   
     pytorch_transforms = transforms.Compose(
@@ -64,6 +68,7 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
         # Instead of passing transforms to CIFAR10(..., transform=transform)
         # we will use this function to dataset.with_transform(apply_transforms)
         # The transforms object is exactly the same
+        
         batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
         return batch
 
@@ -73,14 +78,17 @@ def load_datasets(partition_id: int, fds: FederatedDataset, cfg: DictConfig) -> 
         partition_train_test["train"], batch_size=cfg.client_config.batch_size, shuffle=True, drop_last=True # We drop the last batch if the dataset's size of the client is not divisible by the batch size.
     )
     valloader = DataLoader(partition_train_test["test"], batch_size=cfg.client_config.batch_size)
-    testset = fds.load_partition(partition_id, split='test').with_transform(apply_transforms)
+    if isinstance(fds, dict):
+        testset = fds['test'].load_partition(partition_id).with_transform(apply_transforms)
+    else:
+        testset = fds.load_partition(partition_id, split='test').with_transform(apply_transforms)
     testloader = DataLoader(testset, batch_size=cfg.client_config.batch_size)
         
     return trainloader, valloader, testloader
     
 
 
-def get_client_fn(cfg: DictConfig, client_save_path: str, fds: FederatedDataset, model_manager: Type[ModelManager], model_module: Type[nn.Module], client_class: Type[BaseClient]) -> Callable[[Context], BaseClient]:
+def get_client_fn(cfg: DictConfig, client_save_path: str, fds: Union[FederatedDataset, Dict[str, Partitioner]], model_manager: Type[ModelManager], model_module: Type[nn.Module], client_class: Type[BaseClient]) -> Callable[[Context], BaseClient]:
 
     def client_fn(context: Context) -> BaseClient:
         partition_id = context.node_config['partition-id']

@@ -342,8 +342,8 @@ class FedPerPartitioner(Partitioner):
     
 def load_partitioner(cfg: DictConfig, ) -> Partitioner:
     if cfg.dataset.partitioner.name == "dirichlet":
-        train_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
-        test_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed)
+        train_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed, min_partition_size=1)
+        test_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed, min_partition_size=1)
         
     elif cfg.dataset.partitioner.name == "dirichletskewed":
         test_partitioner = DirichletSkewedPartitioner(num_partitions=cfg.num_clients, rich_client_ratio=cfg.dataset.partitioner.rich_client_ratio, alpha_rich=cfg.dataset.partitioner.alpha_rich,  alpha_poor=cfg.dataset.partitioner.alpha_poor, seed=cfg.seed)

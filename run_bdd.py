@@ -16,7 +16,9 @@ from logging import INFO
 from flwr.common import log
 import torch
 import logging
+from base.dataset import BDD100KDataset
 from base.utils import load_datasets, load_global_weights
+from base.dataset import load_dbb100k_dataset
 
 main_logger = logging.getLogger(__name__)
 
@@ -44,33 +46,16 @@ def main(cfg: DictConfig) -> None:
     
     # --------------------- Choose the right Partitioner (Train and test will have the same) ---------------------
     train_partitioner, test_partitioner = load_partitioner(cfg)
-  
-    fds = FederatedDataset(dataset=cfg.dataset.name, partitioners={"train": train_partitioner, "test":  test_partitioner})
 
-
-    fig_train, _, _ = plot_label_distributions(partitioner=fds.partitioners["train"],
-    label_name="label",
-    legend=True,
-    )
+    fds = load_dbb100k_dataset(cfg.dataset.root_path)
+    train_partitioner.dataset = fds['train']
+    test_partitioner.dataset = fds['test']
     
-    fig_test, _, _ = plot_label_distributions(partitioner=fds.partitioners["test"],     
-                                            label_name="label",
-                                                legend=True,
-                                                )
-                                                                        
-    fig_test.legend()
-    fig_test.set_size_inches(12, 8)
-    fig_train.legend()
-    fig_train.set_size_inches(12, 8)
-
-    fig_train.savefig(f'{log_save_path}/samples_per_label_per_client.png', dpi=300)
-    fig_test.savefig(f'{log_save_path}/samples_per_label_per_client_test.png', dpi=300)
-    plt.close()
-
     
     # Create a new client
     client_class_name, model_manager, model_module = load_client_element(cfg)
-    client_fn = get_client_fn(cfg, client_save_path, fds, model_manager, model_module, client_class_name)
+    
+    client_fn = get_client_fn(cfg, client_save_path, {'train': train_partitioner, 'test': test_partitioner}, model_manager, model_module, client_class_name)
     client = ClientApp(client_fn)
     print(client)
     
