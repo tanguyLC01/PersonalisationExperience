@@ -6,6 +6,7 @@ import numpy as np
 from typing import Tuple, List, Dict, Union
 from flwr.common import NDArrays, Scalar
 from flwr.common import Context
+from omegaconf import DictConfig
 import os
 from base.model import ModelManager 
 from flwr.common.logger import log
@@ -14,7 +15,7 @@ from logging import INFO
 
 class BaseClient(NumPyClient):
     
-    def __init__(self, partition_id: int, model_manager: type[ModelManager], config: Dict[str, Scalar]) -> None:
+    def __init__(self, partition_id: int, model_manager: ModelManager, config: DictConfig) -> None:
         self.partition_id = partition_id
         self.model_manager = model_manager
         if "num_epochs" in config.client_config:
@@ -24,7 +25,7 @@ class BaseClient(NumPyClient):
         
     def get_parameters(self, config: Dict[str, Scalar]) -> List[np.ndarray]:
         """Return the current parameters of the global network."""
-        return self.model_manager.model.get_parameters()
+        return self.model_manager.model.get_parameters() # type: ignore[attr-defined]
     
     def set_parameters(
         self, parameters: List[np.ndarray], evaluate: bool = False
@@ -44,7 +45,7 @@ class BaseClient(NumPyClient):
 
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
 
-        self.model_manager.model.set_parameters(state_dict)
+        self.model_manager.model.set_parameters(state_dict) # type: ignore[attr-defined]
         
     def perform_train(
         self, verbose: bool = False
@@ -60,15 +61,16 @@ class BaseClient(NumPyClient):
         else:
             epochs = 0
 
-        self.model_manager.model.enable_global_net()
-        self.model_manager.model.enable_local_net()
+        self.model_manager.model.enable_global_net() # type: ignore[attr-defined]
+        self.model_manager.model.enable_local_net() # type: ignore[attr-defined]
 
         return self.model_manager.train(
             epochs=epochs,  
             verbose=verbose
         )
     
-    def fit(self, parameters, config) -> List[np.ndarray]:
+    def fit(self, parameters, config) -> tuple[List[np.ndarray], int, Dict[str, List[Dict[str, float]]]]: # type: ignore[attr-defined]
+        # Be aware, here we change the return type of the function because we perform the aggregation of the metrics later.
         """Train the network and return the updated parameters."""
         log(INFO, f"[Client {self.partition_id}] fit, config: {config}")
         self.set_parameters(parameters)
@@ -77,7 +79,7 @@ class BaseClient(NumPyClient):
         log(INFO, f"Training Results ------- Client {self.partition_id}")
         log(INFO, f'{train_results}')
 
-        return self.get_parameters(config), self.model_manager.train_dataset_size(), train_results
+        return self.get_parameters(config), self.model_manager.train_dataset_size(), train_results  # type: ignore[attr-defined]
     
     def evaluate(self, parameters: NDArrays, config: Dict[str, Scalar]) -> Tuple[float, int, dict]:
         """Evaluate the network and return the loss and accuracy."""
@@ -87,14 +89,14 @@ class BaseClient(NumPyClient):
         return float(loss), self.model_manager.test_dataset_size(), {"accuracy": float(accuracy), "loss": float(loss)}
 
 class PersonalizedClient(BaseClient):
-    def __init__(self, partition_id: int, model_manager: type[ModelManager], config: Dict[str, Scalar]) -> None:
+    def __init__(self, partition_id: int, model_manager: ModelManager, config: DictConfig) -> None:
         super().__init__(partition_id, model_manager, config)  
 
     def get_parameters(self, config) -> List[np.ndarray]:
         """Return the current global_net parameters."""
         return [
             val.cpu().numpy()
-            for _, val in self.model_manager.model.global_net.state_dict().items()
+            for _, val in self.model_manager.model.global_net.state_dict().items() # type: ignore[attr-defined]s
         ]
         
     def set_parameters(self, parameters: List[np.ndarray], evaluate: bool =False) -> None:
@@ -112,7 +114,7 @@ class PersonalizedClient(BaseClient):
         # Set global model
         params_dict = zip(global_model_keys, parameters)
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-        self.model_manager.model.set_parameters(state_dict)
+        self.model_manager.model.set_parameters(state_dict) # type: ignore[attr-defined]
         
     
     

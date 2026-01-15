@@ -9,6 +9,7 @@ from flwr_datasets import FederatedDataset
 from typing import Callable, Tuple
 from omegaconf import DictConfig
 from flwr.server import ServerConfig, ServerAppComponents
+from flwr.client import Client
 from base.server import PartialLayerFedAvg
 from base.client import BaseClient
 from base.model import ModelManager
@@ -74,24 +75,26 @@ def load_datasets(partition_id: int, fds: Union[FederatedDataset, Dict[str, Part
 
     # Create train/val for each partition and wrap it into DataLoader
     partition_train_test = partition_train_test.with_transform(apply_transforms)
+    partition_train_test['train'].set_format('torch', columns=['img', 'label'])
     trainloader = DataLoader(
-        partition_train_test["train"], batch_size=cfg.client_config.batch_size, shuffle=True, drop_last=True # We drop the last batch if the dataset's size of the client is not divisible by the batch size.
+        partition_train_test["train"], batch_size=cfg.client_config.batch_size, shuffle=True, drop_last=True # We drop the last batch if the dataset's size of the client is not divisible by the batch size.  # type: ignore[attr-defined]
     )
-    valloader = DataLoader(partition_train_test["test"], batch_size=cfg.client_config.batch_size)
+    valloader = DataLoader(partition_train_test["test"], batch_size=cfg.client_config.batch_size)  # type: ignore[attr-defined]
     if isinstance(fds, dict):
         testset = fds['test'].load_partition(partition_id).with_transform(apply_transforms)
     else:
         testset = fds.load_partition(partition_id, split='test').with_transform(apply_transforms)
-    testloader = DataLoader(testset, batch_size=cfg.client_config.batch_size)
+    testset.set_format('torch', columns=['img', 'label'])
+    testloader = DataLoader(testset, batch_size=cfg.client_config.batch_size)  # type: ignore[attr-defined]
         
     return trainloader, valloader, testloader
     
 
 
-def get_client_fn(cfg: DictConfig, client_save_path: str, fds: Union[FederatedDataset, Dict[str, Partitioner]], model_manager: Type[ModelManager], model_module: Type[nn.Module], client_class: Type[BaseClient]) -> Callable[[Context], BaseClient]:
+def get_client_fn(cfg: DictConfig, client_save_path: str, fds: Union[FederatedDataset, Dict[str, Partitioner]], model_manager: Type[ModelManager], model_module: Type[nn.Module], client_class: Type[BaseClient]) -> Callable[[Context], Client]:
 
-    def client_fn(context: Context) -> BaseClient:
-        partition_id = context.node_config['partition-id']
+    def client_fn(context: Context) -> Client:
+        partition_id = int(context.node_config['partition-id'])
         client_local_net_model_path = f"{client_save_path}/local_net_{partition_id}.pth"
         trainloader, _, testloader = load_datasets(partition_id, fds, cfg)
         mobile_net_manager = model_manager(partition_id, cfg, trainloader, testloader, model_class=model_module, client_save_path=client_local_net_model_path)
@@ -106,13 +109,13 @@ def load_global_weights(global_weights_path: str, net_manager: ModelManager) -> 
             
         ndarrays = data['global_parameters']
 
-        state_dict = net_manager.model.global_net.state_dict()
+        state_dict = net_manager.model.global_net.state_dict() # type: ignore[attr-defined]
 
         new_state_dict = {}
         for key, array in zip(state_dict.keys(), ndarrays):
             new_state_dict[key] = torch.tensor(array, dtype=torch.float32)
         
-        net_manager.model.global_net.load_state_dict(new_state_dict)  
+        net_manager.model.global_net.load_state_dict(new_state_dict)  # type: ignore[attr-defined]
 
 def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     losses = []

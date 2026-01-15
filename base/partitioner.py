@@ -6,7 +6,7 @@ import numpy as np
 from collections import defaultdict
 from flwr_datasets.common.typing import NDArray
 import warnings
-from flwr_datasets.partitioner import DirichletPartitioner, PathologicalPartitioner
+from flwr_datasets.partitioner import DirichletPartitioner, PathologicalPartitioner, IidPartitioner
 from omegaconf import DictConfig
 
 
@@ -30,7 +30,7 @@ class DirichletSkewedPartitioner(Partitioner):
         self._seed = seed
         self._rng = np.random.default_rng(seed=self._seed)
 
-    def call(self, dataset: Dataset) -> Dict[int, List[int]]:
+    def call(self, dataset: Dataset) -> None | Dict[int, List[int]]:
         if self._partition_id_to_indices_determined:
             return
         
@@ -291,7 +291,7 @@ class FedPerPartitioner(Partitioner):
         self.num_classes_per_partition = num_classes_per_partition
         self._rng = np.random.default_rng(seed=self._seed)
 
-    def call(self, dataset: Dataset) -> Dict[int, List[int]]:
+    def call(self, dataset: Dataset) -> None | Dict[int, List[int]]:
         if self._partition_id_to_indices_determined:
             return
         
@@ -323,7 +323,7 @@ class FedPerPartitioner(Partitioner):
             for label in rand_set_label:
                 idx = np.random.choice(len(class_to_indices[label]), replace=False)
                 rand_set.append(class_to_indices[label].pop(idx))
-            dict_users[cid] = np.concatenate(rand_set)
+            dict_users[cid] = list(np.concatenate(rand_set))
 
         self._partition_id_to_indices = dict_users
         self._partition_id_to_indices_determined = True
@@ -340,7 +340,7 @@ class FedPerPartitioner(Partitioner):
         return self.dataset.select(self._partition_id_to_indices[partition_id])
     
     
-def load_partitioner(cfg: DictConfig, ) -> Partitioner:
+def load_partitioner(cfg: DictConfig, ) -> tuple[Partitioner, Partitioner]:
     if cfg.dataset.partitioner.name == "dirichlet":
         train_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed, min_partition_size=1)
         test_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed, min_partition_size=1)
@@ -382,5 +382,8 @@ def load_partitioner(cfg: DictConfig, ) -> Partitioner:
         test_partitioner = FedPerPartitioner(num_partitions=cfg.num_clients, 
                                               num_classes_per_partition=cfg.dataset.partitioner.num_classes_per_partition,
                                               seed=cfg.seed)
+    else:
+        train_partitioner = IidPartitioner(num_partitions=cfg.num_clients)
+        test_partitioner = IidPartitioner(num_partitions=cfg.num_clients)
         
     return train_partitioner, test_partitioner
