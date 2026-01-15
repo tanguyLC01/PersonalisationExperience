@@ -151,3 +151,10 @@ personalisation_level: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 in_channels: 3
 ```
 Here, we reconstructed the FedPer experiment setting where all client have their final layer personalized.
+
+# Evaluation
+Once the federated process is terminated, we can parse the log files to obtain the metrics curves of the experiment
+```
+python3 get_metrics.py path/to/log # Usually like, ${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}/main.log
+```
+Also, it is possible to get the metrics per class and per client with `get_results.py` which will run `evaluate_model.py` for every client of the experiment.

@@ -21,6 +21,8 @@ def main() -> None:
     parser.add_argument("-l", "--log_directory", type=str, help="Directory to save logs")
 
     log_directory  = parser.parse_args().log_directory
+    
+    # we check if metric_0 exists to know if we have to run evaluation or not
     if os.path.exists(f'{log_directory}/{sub_path}') and not os.path.exists(f'{log_directory}/test_metrics/test_metrics_0.json'):
         run_results(f'{log_directory}')
         return
