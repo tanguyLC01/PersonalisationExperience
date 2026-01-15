@@ -65,20 +65,89 @@ This will specify a personalisation_level - the number of personalized layers st
 NB : You will note here that we specify the in_channels (the number of channels in the input image) in the model setting but this is linked to the dataset choice.
 # Reflexivity as Modularity
 In order to provide developers with a full managable framework, it is quite easy to implement new strategy and architecture inside this repository.<br>
-Let's say you want to implement the FedRep method. You need to implement a new `train` method in the ModelManager to be able to separate the training phase between the body and the head.<br>
+Let's say you want to implement the <strong>FedRep </strong> method. You need to implement a new `train` method in the ModelManager to be able to separate the training phase between the body and the head.<br>
 Hence, we create a sub-directory named fedrep - concordance of the names is crucial - and we create a file `model.py` in this subdirectory. In this last file, we define a class `ModelManagerFedrep` which derives from `base.ModelManager` and we can redefine the the train method in this class.<br>
-In the repo, the method `load_classname.load_client_element` handle the reflexivity paradigm. For example, if we specify in the config file `algortihm: fedper`, the function will look for `fedper.model.py`, `fedper.client.py`, .. And, then if it exists, it will choose the method(s) defini<br>
-## Usage
-If the strategy we want to use is already predefined, we <strong>only</strong> have to modify the configuration files.<br>
-Otherwise, it is necessary to create a module with the name of the algorithm - <strong>this name will be the one in the algorithm field in the `base.yaml` file.</strong><br>
-Inside this module, you can derive from the `base` module some of the class - ModelManager, Client, .. - to adapt the code to the new strategy you want to implement.<br>
-You can find an example of this process in the `fedrep` and `fedavgft` module.<br>
-<strong>WARNING</strong> : Without inheritance from the `base` class, the whole module does not work.
+In the repo, the method `load_classname.load_client_element` handle the reflexivity paradigm. For example, if we specify in the config file `algortihm: fedper`, the function will look for `fedper.model.py`, `fedper.client.py`, .. And, then if it exists, it will choose the method(s) definied in the `base` module.<br>
 
-## Troubleshooting
+# Setup
+## Environment Installation
+```
+python3 -m venv ./personalisation_env
+source ./personalisation_env/bin/activate
+pip install -r requirements.txt
+```
 
-## Contributing
+# Example
+In this section, we present different possible configuration to run experiments.
+## FedAvg on CIFAR-10
+We run the FedAvg algorithm on the MNIST dataset with a CNN-based model
+### base.yaml
+```
+num_clients: 100
+num_rounds: 100
+seed: 42
+session_name: fedavg_mnist
+algorithm: fedavg
+device: cuda
 
-## License
+server_config:
+  fraction_fit: 0.1
+  fraction_evaluate: 1
+  min_fit_clients: 2
+  min_evaluate_clients: 2
+  min_available_clients: 2
 
-## Contact
+hydra:
+  run:
+    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}s
+
+
+defaults:
+  - dataset: cifar10
+  - client_config: fedavg
+  - model: cnn_net
+```
+
+### cnn_net.yaml
+```
+model_class_name: cnn_net
+num_classes: 10
+personalisation_level: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+in_channels: 3
+```
+Here, all personalisation levels are at 0 because we want every model to have a full global_net. In this case,locak_net will be a torch Identity Layer.
+
+### client_config/fedavg.yaml
+```
+client_class_name: BaseClient
+num_epochs: 10 
+batch_size: 10
+learning_rate: 0.01
+optimiser: "sgd"
+num_cpus: 10
+num_gpus: 1
+momentum: 0.5
+weight_decay: 1e-4 
+```
+In this config file, we define all the client parameters for training. We choose BaseClient because we can send all the models's parameters to the server as we are doing FedAvg
+
+## FedPer on MNIST
+To run FedPer, it is basically the same configuration as the algorithm on the server is the same but it is on the personalisation_lvel for each client, we'll have a role to play. Hence, we change only the `model/{name_of_the_model}.yaml` file to put in place th personalization in fedper.
+### cnn_net.yaml
+```
+model_class_name: cnn_net
+num_classes: 10
+personalisation_level: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+in_channels: 3
+```
+Here, we reconstructed the FedPer experiment setting where all client have their final layer personalized.
