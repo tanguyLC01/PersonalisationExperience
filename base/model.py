@@ -1,7 +1,7 @@
 import torch.nn as nn
 from collections import OrderedDict
 import numpy as np
-from typing import Any, Dict, List, Tuple, Type, Union, Optional
+from typing import Any, Dict, List, Tuple, Type, Union, Optional, Protocol
 
 from omegaconf import DictConfig
 from torch import Tensor
@@ -42,15 +42,15 @@ class ModelSplit(nn.Module):
             Tuple where the first element is the global_net of the model
             and the second is the local_net.
         """
-        return model.global_net, model.local_net
-
+        return model.global_net, model.local_net  # type: ignore[attr-defined]
+ 
     @property
     def global_net(self) -> nn.Module:
         """Return model global_net."""
         return self._global_net
 
     @global_net.setter
-    def global_net(self, state_dict: "OrderedDict[str, Tensor]") -> None:
+    def global_net(self, state_dict: OrderedDict[str, Tensor]) -> None:
         """Set model global_net.
 
         Args:
@@ -164,7 +164,7 @@ class ModelManager:
         for _ in range(config.model.personalisation_level[client_id]):
             self._model.personalise_last_module()
 
-    def _create_model(self, model_class) -> nn.Module:
+    def _create_model(self, model_class: Type[nn.Module]) -> nn.Module:
         """Return model to be splitted into local_net and global_net."""
         return model_class(self.config.model).to(self.device)
 
@@ -186,7 +186,7 @@ class ModelManager:
         
         if self.client_save_path is not None:
             try:
-                self.model.local_net.load_state_dict(torch.load(self.client_save_path))
+                self.model.local_net.load_state_dict(torch.load(self.client_save_path)) # type: ignore[attr-defined]
             except FileNotFoundError:   
                 log(INFO, "No client state found, training from scratch.")
                 pass
@@ -220,7 +220,7 @@ class ModelManager:
                 
         # Save client state (local_net)
         if self.client_save_path is not None:
-            torch.save(self.model.local_net.state_dict(), self.client_save_path)
+            torch.save(self.model.local_net.state_dict(), self.client_save_path) # type: ignore[attr-defined]
 
         return {"loss": epoch_loss / len(self.trainloader) / epochs , "accuracy": correct / total}
         
@@ -238,7 +238,7 @@ class ModelManager:
         # Load client state (local_net)
         if self.client_save_path is not None:
             try:
-                self.model.local_net.load_state_dict(torch.load(self.client_save_path))
+                self.model.local_net.load_state_dict(torch.load(self.client_save_path)) # type: ignore[attr-defined]
             except FileNotFoundError:   
                 log(INFO, "No client state found, evaluating from scratch")
                 pass
@@ -246,9 +246,8 @@ class ModelManager:
         self.model.eval()
         criterion = torch.nn.CrossEntropyLoss()
         correct, total, loss = 0, 0, 0.0
-        if full_report:
-            all_preds = []
-            all_targets = []
+        all_preds = []
+        all_targets = []
         with torch.no_grad():
             for batch in self.testloader:
                 images, labels = batch['img'], batch['label']
@@ -264,7 +263,7 @@ class ModelManager:
                     
         accuracy = correct / total
         final_dict = {
-            "loss": loss / len(self.testloader.dataset),
+            "loss": loss / len(self.testloader.dataset),# type: ignore[attr-defined]
             "accuracy": accuracy,
         }
         

@@ -29,8 +29,8 @@ class PartialLayerFedAvg(FedAvg):
         os.makedirs(self.global_model_path, exist_ok=True)
         self.latest_aggregated = None
 
-    def _save_global_model(self, server_round: int, parameters):
-        ndarrays = flwr.common.parameters_to_ndarrays(parameters)
+    def _save_global_model(self, server_round: int, parameters: Parameters):
+        ndarrays = parameters_to_ndarrays(parameters)
         data = {'global_parameters': ndarrays}
         filename = f'{self.global_model_path}/parameters_round_{server_round}.pkl'
         with open(filename, 'wb') as h:
@@ -69,10 +69,10 @@ class PartialLayerFedAvg(FedAvg):
         # Aggregate each layer independently
         for i, weighted_layers in layer_dict.items():
             total = sum(size for _, size in weighted_layers)
-            avg = sum(weight * size for weight, size in weighted_layers) / total
+            avg = np.sum([weight * size for weight, size in weighted_layers], axis=0) / total
             layer_dict[i] = avg
             
-        self.latest_aggregated = layer_dict
+        self.latest_aggregated = {i: np.array(layer) for i, layer in layer_dict.items()}
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
@@ -84,11 +84,11 @@ class PartialLayerFedAvg(FedAvg):
         # In Flower, the returned parameter from aggregate fit will be seen as an argument in configure_fit and configure_evaluate
         # return Parameters(tensors=[], tensor_type=""), metrics_aggregated
         log(INFO, f'Number of layers updated : {len(self.latest_aggregated)}')
-        params = ndarrays_to_parameters(self.latest_aggregated.values())
+        params = ndarrays_to_parameters(list(self.latest_aggregated.values()))
         return params, metrics_aggregated
     
     
-    def evaluate(self, server_round: int, parameters: List[np.ndarray]) -> Tuple[float, int, Dict[str, float]]:
+    def evaluate(self, server_round: int, parameters: Parameters) -> Tuple[float, dict[str, Scalar]] | None:
         """Evaluate the global model and save it."""   
         # Save the global model before evaluation
         self._save_global_model(server_round, parameters)
