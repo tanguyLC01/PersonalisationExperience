@@ -2,6 +2,7 @@ import re
 import argparse
 from omegaconf import OmegaConf
 import os
+from typing import Tuple
 import json
 import subprocess
 import numpy as np
@@ -41,7 +42,7 @@ def extract_accuracies(log_path):
     return mean_accuracy
 
 
-def get_metrics(log_path: str) -> None:
+def get_metrics(log_path: str) -> Tuple[float, float]:
     
     metric_path = os.path.join(log_path, 'test_metrics')
     if not os.path.exists(metric_path):
@@ -59,7 +60,7 @@ def get_metrics(log_path: str) -> None:
             data = json.load(f)
         
         client_accuracies.append(data['accuracy']*100)
-    std_accuracies = np.std(np.array(client_accuracies))
+    std_accuracies = float(np.std(np.array(client_accuracies)))
     return mean_accuracy, std_accuracies
     
         
