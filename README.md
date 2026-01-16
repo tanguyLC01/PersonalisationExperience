@@ -155,6 +155,9 @@ Here, we reconstructed the FedPer experiment setting where all client have their
 # Evaluation
 Once the federated process is terminated, we can parse the log files to obtain the metrics curves of the experiment
 ```
-python3 get_metrics.py path/to/log # Usually like, ${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}/main.log
+python3 get_metrics.py -l path/to/log # With initial config, ${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}/run.log
 ```
 Also, it is possible to get the metrics per class and per client with `get_results.py` which will run `evaluate_model.py` for every client of the experiment.
+```
+python3 get_results.py -l path/to/log_directory
+```

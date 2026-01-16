@@ -17,7 +17,7 @@ class CnnNet(nn.Module):
             nn.ReLU(),
             nn.Linear(120, 84),
             nn.ReLU(),
-            nn.Linear(64, num_classes)
+            nn.Linear(84, num_classes)
         )
         
         self.local_net = nn.Identity()

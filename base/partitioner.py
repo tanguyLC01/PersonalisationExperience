@@ -340,7 +340,7 @@ class FedPerPartitioner(Partitioner):
         return self.dataset.select(self._partition_id_to_indices[partition_id])
     
     
-def load_partitioner(cfg: DictConfig, ) -> tuple[Partitioner, Partitioner]:
+def load_partitioner(cfg: DictConfig) -> tuple[Partitioner, Partitioner]:
     if cfg.dataset.partitioner.name == "dirichlet":
         train_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed, min_partition_size=1)
         test_partitioner = DirichletPartitioner(alpha=cfg.dataset.partitioner.alpha, num_partitions=cfg.num_clients, partition_by="label", seed=cfg.seed, min_partition_size=1)
