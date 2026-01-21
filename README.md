@@ -79,14 +79,17 @@ pip install -r requirements.txt
 
 # Example
 In this section, we present different possible configuration to run experiments.
+```bash
+python run.py (--config-name path/conf/file)
+```
 ## FedAvg on CIFAR-10
-We run the FedAvg algorithm on the MNIST dataset with a CNN-based model
+We run the FedAvg algorithm on the CIFAR-10 dataset with a CNN-based model
 ### base.yaml
 ```
 num_clients: 100
 num_rounds: 100
 seed: 42
-session_name: fedavg_mnist
+session_name: fedavg_cifar10
 algorithm: fedavg
 device: cuda
 
@@ -136,7 +139,7 @@ weight_decay: 1e-4
 ```
 In this config file, we define all the client parameters for training. We choose BaseClient because we can send all the models's parameters to the server as we are doing FedAvg
 
-## FedPer on MNIST
+## FedPer on CIFAR-10
 To run FedPer, it is basically the same configuration as the algorithm on the server is the same but it is on the personalisation_lvel for each client, we'll have a role to play. Hence, we change only the `model/{name_of_the_model}.yaml` file to put in place th personalization in fedper.
 ### cnn_net.yaml
 ```

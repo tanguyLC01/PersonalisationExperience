@@ -31,7 +31,7 @@ def main(cfg: DictConfig) -> None:
     torch.backends.cudnn.enabled = False
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
-    log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+    log_save_path = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir # type: ignore[attr-defined]
     log(INFO, f"Saving logs to {log_save_path}")
     client_save_path = (
             f"{log_save_path}/client_states"
