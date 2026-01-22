@@ -7,7 +7,10 @@ def load_client_element(cfg):
     try:
         model_manager_class = getattr(importlib.import_module(f'{cfg.algorithm}.model'), f'ModelManager{cfg.algorithm.capitalize()}')  
     except ModuleNotFoundError:
-        model_manager_class = getattr(importlib.import_module(f'base.model'), 'ModelManager')  
-    client_class_name = getattr(importlib.import_module(f'base.client'), cfg.client_config.client_class_name)
+        model_manager_class = getattr(importlib.import_module(f'base.model'), 'ModelManager')
+    try:
+        client_class_name = getattr(importlib.import_module(f'{cfg.algorithm}.client'), f'{cfg.algorithm.capitalize()}Client')  
+    except ModuleNotFoundError:
+        client_class_name = getattr(importlib.import_module(f'base.model'), 'PersonalizedClient')  
     
     return client_class_name, model_manager_class, model_module_class
