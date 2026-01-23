@@ -1,0 +1,23 @@
+num_clients: 20
+num_rounds: 40
+seed: 42
+session_name: test_fedas
+algorithm: fedas
+device: cuda
+
+server_config:
+  fraction_fit: 0.1
+  fraction_evaluate: 1
+  min_fit_clients: 2
+  min_evaluate_clients: 2
+  min_available_clients: 2
+
+hydra:
+  run:
+    dir: ../${session_name}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+
+defaults:
+  - dataset: cifar10
+  - client_config: fedas
+  - model: cnn_net

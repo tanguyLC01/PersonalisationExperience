@@ -1,0 +1,10 @@
+client_class_name: 'FedasClient'
+num_epochs: 5 
+batch_size: 16
+optimiser: "sgd"
+num_cpus: 10
+num_gpus: 1
+momentum: 0.9
+weight_decay: 1e-4
+align_learning_rate: 1e-3
+local_learning_rate: 5e-3

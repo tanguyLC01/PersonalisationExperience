@@ -131,9 +131,18 @@ class ModelSplit(nn.Module):
         x = self.global_net(inputs)
         return self.local_net(x)
     
+    
+""" Function to personalize a model """
+def personalize_layer(model: ModelSplit, personalization_level: int) -> ModelSplit:
+    for _ in range(personalization_level):
+        model.personalise_last_module()
+    return model
+    
+    
 
 class ModelManager:
     """Manager for models with global_net/local_net split."""
+
 
     def __init__(
         self,
@@ -160,14 +169,22 @@ class ModelManager:
         self.config = config
         self.device = self.config.device
         self._model = ModelSplit(self._create_model(model_class))
-        
-        for _ in range(config.model.personalisation_level[client_id]):
-            self._model.personalise_last_module()
-
+        self.personalization_level = config.model.personalisation_level[client_id]
+        personalize_layer(self._model, self.personalization_level)
+    
     def _create_model(self, model_class: Type[nn.Module]) -> nn.Module:
         """Return model to be splitted into local_net and global_net."""
         return model_class(self.config.model).to(self.device)
 
+    def _get_optimizer(self):
+        weights = [v for k, v in self._model.named_parameters() if "weight" in k]
+        biases = [v for k, v in self._model.named_parameters() if "bias" in k]
+        optimizer = torch.optim.SGD(
+             [
+                {"params": weights, "weight_decay": self.config.client_config.weight_decay},
+                {"params": biases, "weight_decay": 0.0},
+            ], lr=self.config.client_config.learning_rate, momentum=self.config.client_config.momentum)
+        return optimizer
 
     def train(
         self,
@@ -192,14 +209,7 @@ class ModelManager:
                 pass
             
         criterion = torch.nn.CrossEntropyLoss()
-        weights = [v for k, v in self._model.named_parameters() if "weight" in k]
-        biases = [v for k, v in self._model.named_parameters() if "bias" in k]
-        
-        optimizer = torch.optim.SGD(
-             [
-                {"params": weights, "weight_decay": self.config.client_config.weight_decay},
-                {"params": biases, "weight_decay": 0.0},
-            ], lr=self.config.client_config.learning_rate, momentum=self.config.client_config.momentum)
+        optimizer = self._get_optimizer()
         correct, total = 0, 0
         epoch_loss = 0.0
         self.model.train()

@@ -24,7 +24,7 @@ class BaseClient(NumPyClient):
             self.epochs = None
         
     def get_parameters(self, config: Dict[str, Scalar]) -> List[np.ndarray]:
-        """Return the current parameters of the global network."""
+        """Return the current parameters of the network."""
         return self.model_manager.model.get_parameters() # type: ignore[attr-defined]
     
     def set_parameters(

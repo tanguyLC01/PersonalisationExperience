@@ -11,6 +11,7 @@ from omegaconf import DictConfig
 from flwr.server import ServerConfig, ServerAppComponents
 from flwr.client import Client
 from base.server import PartialLayerFedAvg
+from flwr.server.strategy import FedAvg
 from base.client import BaseClient
 from base.model import ModelManager
 from typing import Type, List, Union, Dict
@@ -20,7 +21,7 @@ from PIL import Image
 
 
 
-def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], ServerAppComponents]:
+def get_server_fn(cfg: DictConfig, server_path: str, server_class_name: Type[FedAvg]) -> Callable[[Context], ServerAppComponents]:
     
     
     def fit_config(server_round: int) -> dict:
@@ -35,7 +36,7 @@ def get_server_fn(cfg: DictConfig, server_path: str) -> Callable[[Context], Serv
         """
 
         # Create FedAvg strategy
-        strategy = PartialLayerFedAvg(
+        strategy = server_class_name(
             save_path=server_path,
             on_fit_config_fn=fit_config,
             fraction_fit=cfg.server_config.fraction_fit,
@@ -75,7 +76,6 @@ def load_datasets(partition_id: int, fds: Union[FederatedDataset, Dict[str, Part
 
     # Create train/val for each partition and wrap it into DataLoader
     partition_train_test = partition_train_test.with_transform(apply_transforms)
-    partition_train_test['train'].set_format('torch', columns=['img', 'label'])
     trainloader = DataLoader(
         partition_train_test["train"], batch_size=cfg.client_config.batch_size, shuffle=True, drop_last=True # We drop the last batch if the dataset's size of the client is not divisible by the batch size.  # type: ignore[attr-defined]
     )
@@ -84,7 +84,6 @@ def load_datasets(partition_id: int, fds: Union[FederatedDataset, Dict[str, Part
         testset = fds['test'].load_partition(partition_id).with_transform(apply_transforms)
     else:
         testset = fds.load_partition(partition_id, split='test').with_transform(apply_transforms)
-    testset.set_format('torch', columns=['img', 'label'])
     testloader = DataLoader(testset, batch_size=cfg.client_config.batch_size)  # type: ignore[attr-defined]
         
     return trainloader, valloader, testloader

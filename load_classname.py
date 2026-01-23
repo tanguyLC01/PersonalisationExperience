@@ -11,6 +11,15 @@ def load_client_element(cfg):
     try:
         client_class_name = getattr(importlib.import_module(f'{cfg.algorithm}.client'), f'{cfg.algorithm.capitalize()}Client')  
     except ModuleNotFoundError:
-        client_class_name = getattr(importlib.import_module(f'base.model'), 'PersonalizedClient')  
+        client_class_name = getattr(importlib.import_module(f'base.model'), 'PersonalizedClient') 
     
     return client_class_name, model_manager_class, model_module_class
+
+
+def load_server_element(cfg):
+    try:
+        server_class_name = getattr(importlib.import_module(f'{cfg.algorithm}.server'), f'{cfg.algorithm.capitalize()}Server')  
+    except ModuleNotFoundError:
+        server_class_name = getattr(importlib.import_module(f'base.server'), 'PartialLayerFedAvg') 
+    return server_class_name
+    

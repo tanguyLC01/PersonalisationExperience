@@ -11,7 +11,7 @@ from base.utils import get_server_fn, get_client_fn
 import matplotlib.pyplot as plt
 from flwr_datasets.visualization import plot_label_distributions
 from base.partitioner import load_partitioner
-from load_classname import load_client_element
+from load_classname import load_client_element, load_server_element
 from logging import INFO
 from flwr.common import log
 import torch
@@ -70,12 +70,15 @@ def main(cfg: DictConfig) -> None:
     
     # Create a new client
     client_class_name, model_manager, model_module = load_client_element(cfg)
+    print(model_manager)
+    print(client_class_name)
     client_fn = get_client_fn(cfg, client_save_path, fds, model_manager, model_module, client_class_name)
     client = ClientApp(client_fn)
     print(client)
     
     # Create a new server
-    server_fn = get_server_fn(cfg, server_save_path)
+    server_class_name = load_server_element(cfg)
+    server_fn = get_server_fn(cfg, server_save_path, server_class_name)
     server = ServerApp(server_fn=server_fn)
 
     # Run simulation
