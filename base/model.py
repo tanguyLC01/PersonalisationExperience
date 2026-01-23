@@ -170,6 +170,7 @@ class ModelManager:
         self.device = self.config.device
         self._model = ModelSplit(self._create_model(model_class))
         self.personalization_level = config.model.personalisation_level[client_id]
+        self.local_learning_rate = self.config.client_config.local_learning_rate
         personalize_layer(self._model, self.personalization_level)
     
     def _create_model(self, model_class: Type[nn.Module]) -> nn.Module:
@@ -183,7 +184,7 @@ class ModelManager:
              [
                 {"params": weights, "weight_decay": self.config.client_config.weight_decay},
                 {"params": biases, "weight_decay": 0.0},
-            ], lr=self.config.client_config.learning_rate, momentum=self.config.client_config.momentum)
+            ], lr=self.local_learning_rate, momentum=self.config.client_config.momentum)
         return optimizer
 
     def train(

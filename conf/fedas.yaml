@@ -1,7 +1,7 @@
 num_clients: 20
 num_rounds: 40
 seed: 42
-session_name: test_fedas
+session_name: test_fedas_lr_decay
 algorithm: fedas
 device: cuda
 

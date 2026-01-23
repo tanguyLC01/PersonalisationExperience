@@ -6,18 +6,16 @@ class CnnNet(nn.Module):
         super(CnnNet, self).__init__()
         num_classes = model_config['num_classes']
         self.global_net = nn.Sequential(
-            nn.Conv2d(3, 64, 5),
+            nn.Conv2d(model_config['in_channels'], 64, 5),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
             nn.Conv2d(64, 64, 5),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
             nn.Flatten(),
-            nn.Linear(64 * 5 * 5, 120),
+            nn.Linear(64 * 5 * 5, 512),
             nn.ReLU(),
-            nn.Linear(120, 84),
-            nn.ReLU(),
-            nn.Linear(84, num_classes)
+            nn.Linear(512, num_classes)
         )
         
         self.local_net = nn.Identity()

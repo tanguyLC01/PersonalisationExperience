@@ -22,6 +22,16 @@ class BaseClient(NumPyClient):
             self.epochs = config.client_config.num_epochs
         else:
             self.epochs = None
+            
+        self.config = config
+
+    def lr_update(self) -> None:
+        if "lr_scheduler" in self.config.client_config:
+            scheduler = self.config.client_config['lr_scheduler']
+            if "lr_decay" in scheduler:
+                decay_procedure = scheduler['lr_decay']
+                if decay_procedure.name == 'constant':
+                    self.model_manager.local_learning_rate *= decay_procedure.gamma
         
     def get_parameters(self, config: Dict[str, Scalar]) -> List[np.ndarray]:
         """Return the current parameters of the network."""
@@ -60,6 +70,8 @@ class BaseClient(NumPyClient):
             epochs = self.epochs
         else:
             epochs = 0
+            
+        self.lr_update()
 
         self.model_manager.model.enable_global_net() # type: ignore[attr-defined]
         self.model_manager.model.enable_local_net() # type: ignore[attr-defined]

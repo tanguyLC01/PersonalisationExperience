@@ -74,7 +74,8 @@ class FedasServer(PartialLayerFedAvg):
 
             # Aggregate each layer independently
             for i, weighted_layers in layer_dict.items():
-                avg = (1-1/len(parameters)) * old_state_dict[i] +  1/len(parameters) * np.sum([weight * size for weight, size in weighted_layers], axis=0)
+                # avg = (1-1/len(parameters)) * old_state_dict[i] +  1/len(parameters) * np.sum([weight * alpha for weight, alpha in weighted_layers], axis=0)
+                avg = np.sum([weight * alpha for weight, alpha in weighted_layers], axis=0)
                 layer_dict[i] = avg
                 
             self.latest_aggregated = {i: np.array(layer) for i, layer in layer_dict.items()}
